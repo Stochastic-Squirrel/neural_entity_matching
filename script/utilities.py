@@ -42,11 +42,12 @@ g_train = g_train.rename(columns = {"price":"price_g","id":"id_g",'name':'title_
 def calculate_edit_distance(x,cols):
     return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
 
-def generate_distance_samples(n, true_matches, negative_matches, distance_cols, plot = True):
+def generate_distance_samples(n, true_matches, negative_matches, distance_cols, plot = True, return_sim = False):
     '''
     Inputs:
         n: Sample Size of true and positive match pairs to take WITHOUT replacement
-        true_matches/negative_matches: DataFrame of true/negative match pairs
+        true_matches: A single DataFrame of true matches
+        negative_matches: A LIST of length 2 where each entry is a DataFrame
         distance_cols: column names in true/negative match tables used to calculate edit distance.
                         This is a nested list of length 2. The first nested list contains names of columns
                         to be used within each match table comparison for the first candidate entity. Second
@@ -58,16 +59,23 @@ def generate_distance_samples(n, true_matches, negative_matches, distance_cols, 
         (true_matches similarities, negative_matches similarities) 
     '''
 
+    if (n > negative_matches[0].shape[0] or n > negative_matches[1].shape[0] or n > true_matches.shape[0]):
+        raise ValueError('Sample size n is greater in length than at least one of the tables.')
+
+    negative_matches[0] = negative_matches[0].sample(n = n).reset_index(drop = True)
+    negative_matches[1] = negative_matches[1].sample(n = n).reset_index(drop = True)
+    negative_matches_sample = pd.concat(negative_matches, axis = 1)
+
     true_matches_sample = true_matches.sample(n = n)
-    negative_matches_sample = negative_matches.sample(n = n)
+    
     true_matches_sample["similarity"]= true_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
     negative_matches_sample["similarity"]= negative_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
 
     if plot:
         sns.distplot(true_matches_sample.similarity)
         sns.distplot(negative_matches_sample.similarity, color = "red")
-
-    return (true_matches_sample.similarity, negative_matches_sample.similarity)
+    if return_sim:
+        return (true_matches_sample.similarity, negative_matches_sample.similarity)
 
 
 def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feature_cols, table_names = None):
@@ -104,8 +112,12 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
     positive_matches.set_index(keys = id_names, inplace = True)
     # Generate Negative Matches only including necessary feature columns
     negative_matches_list = []
-    negative_matches_list.append(table_list[0][~table_list[0].index.isin(positive_matches.index.get_level_values(0))].loc[:,feature_cols])
-    negative_matches_list.append(table_list[1][~table_list[1].index.isin(positive_matches.index.get_level_values(1))].loc[:,feature_cols])
+
+    feature_cols_subset = table_list[0].columns.isin(feature_cols)
+    negative_matches_list.append(table_list[0][~table_list[0].index.isin(positive_matches.index.get_level_values(0))].loc[:,feature_cols_subset])
+    
+    feature_cols_subset = table_list[1].columns.isin(feature_cols)
+    negative_matches_list.append(table_list[1][~table_list[1].index.isin(positive_matches.index.get_level_values(1))].loc[:,feature_cols_subset])
 
     return (positive_matches, negative_matches_list)
 
@@ -113,12 +125,18 @@ def generate_em_train_valid_split(rules, prop_train = 0.8):
     raise NotImplementedError
 
 
-table_list = [amz_train, g_train]
-id_names = ["id_amzn","id_g"]
-feature_cols = ['title_amzn', 'description_amzn',
+# table_list = [amz_train, g_train]
+# id_names = ["id_amzn","id_g"]
+# feature_cols = ['title_amzn', 'description_amzn',
+#        'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
+#        'price_g']
+# positive_matching_table = matches_train
+
+generated_matches = generate_pos_neg_matches(matches_train,
+                                            [amz_train, g_train], 
+                                            ["id_amzn","id_g"], 
+                                            ['title_amzn', 'description_amzn',
        'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
-       'price_g']
-positive_matching_table = matches_train
+       'price_g'])
 
-generated_matches = generate_pos_neg_matches(matches_train, [amz_train, g_train], id_names, feature_cols)
-
+generate_distance_samples(200, generated_matches[0], generated_matches[1], [["title_g","description_g"],["title_amzn","description_amzn"]])
