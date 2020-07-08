@@ -59,9 +59,10 @@ def generate_distance_samples(n, true_matches, negative_matches, id_names, dista
     if (n > negative_matches[0].shape[0] or n > negative_matches[1].shape[0] or n > true_matches.shape[0]):
         raise ValueError('Sample size n is greater in length than at least one of the tables.')
 
-    negative_matches[0] = negative_matches[0].sample(n = n).reset_index(drop = False)
-    negative_matches[1] = negative_matches[1].sample(n = n).reset_index(drop = False)
-    negative_matches_sample = pd.concat(negative_matches, axis = 1)
+    negative_matches_sample = [None, None]
+    negative_matches_sample[0] = negative_matches[0].sample(n = n).reset_index(drop = False)
+    negative_matches_sample[1] = negative_matches[1].sample(n = n).reset_index(drop = False)
+    negative_matches_sample = pd.concat(negative_matches_sample, axis = 1)
     negative_matches_sample = negative_matches_sample.set_index(id_names)
 
     true_matches_sample = true_matches.sample(n = n)
@@ -98,11 +99,11 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
             (positive_matches, negative_matches)
     '''
     # Make Sure Nested Indexing is present. First poisition of Id names is the Id of the left table
-    positive_matching_table.set_index(keys = id_names, inplace = True)
+    positive_matching_table = positive_matching_table.set_index(keys = id_names)
     
     # Make sure that tables to be matched are indexed correctly
     for i, i_id_name in enumerate(id_names):
-        table_list[i].set_index(keys = i_id_name, inplace = True)
+        table_list[i] = table_list[i].set_index(keys = i_id_name)
 
     # Generate Positive Matches
     ## Join First Table
@@ -113,7 +114,7 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
     positive_matches = pd.merge(table_list[1], positive_matches, \
                        how = 'inner', left_on = table_list[1].index , right_on = id_names[1])
     positive_matches = positive_matches.loc[:,id_names + feature_cols]
-    positive_matches.set_index(keys = id_names, inplace = True)
+    positive_matches = positive_matches.set_index(keys = id_names)
     # Generate Negative Matches only including necessary feature columns
     negative_matches_list = []
 
@@ -147,9 +148,7 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
 
     '''
 
-    # TODO: Need to think about how the final data size will be calculated
-    #       Perhaps have a smaller bigger table index?
-    total_size = generated_matches[0].shape[0] + generated_matches[1][0].shape[0] + generated_matches[1][1].shape[0]
+    total_size = generated_matches[0].shape[0] + min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) + np.floor( (max(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) - min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]))/2 )
     train_size = round(total_size * prop_train,0)
     valid_size = total_size - train_size
 
@@ -164,9 +163,14 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     positive_matches = generated_matches[0]
     negative_matches = generated_matches[1]
 
+    # Assign Indices in negative_matches
+    negative_matches[0] = negative_matches[0].set_index(keys = id_names[0])
+    negative_matches[1] = negative_matches[1].set_index(keys = id_names[1])
+
     pos_difficult_indices = []
     neg_difficult_indices = []
 
+    # Calcul
 
     for _ in np.arange(10):
         pos_indices, neg_indices = generate_distance_samples(100, positive_matches, negative_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]], False, True)
@@ -176,24 +180,34 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
         neg_difficult_indices.append(neg_indices[neg_indices >= neg_sim_cutoff].index)
         # Remove these stored indices from the tables to avoid double sampling
         removed_pos_bool = positive_matches.index.isin(pos_indices[pos_indices <= pos_sim_cutoff].index)
-        removed_neg_bool = negative_matches.index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index)
+        positive_matches = positive_matches[~removed_pos_bool]
+
+        removed_neg_bool = negative_matches[0].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(0))
+        negative_matches[0] = negative_matches[0][~removed_neg_bool]
+
+        removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
+        negative_matches[1] = negative_matches[1][~removed_neg_bool]
         # Check if target density of difficuly examples have been achieved, if it has simply randomly sample the rest and don't calc distances 
 
 
-    train_indices = generated_matches[0]
+    
 
-# DEbug generate train valid
-generated_matches = generated_matches
-id_names = ["id_amzn","id_g"]
-prop_train = 0.8
-difficult_cutoff = 0.9
 
-generated_matches = generate_pos_neg_matches(matches_train,
+created_matches = generate_pos_neg_matches(matches_train,
                                             [amz_train, g_train], 
                                             ["id_amzn","id_g"], 
                                             ['title_amzn', 'description_amzn',
        'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
        'price_g'])
+
+
+# DEbug generate train valid
+generated_matches = created_matches
+id_names = ["id_amzn","id_g"]
+prop_train = 0.8
+difficult_cutoff = 0.9
+
+
 
 generate_distance_samples(200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
 
