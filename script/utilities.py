@@ -121,7 +121,16 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
 
     return (positive_matches, negative_matches_list)
 
-def generate_em_train_valid_split(rules, prop_train = 0.8):
+def generate_em_train_valid_split(generated_matches, rules, prop_train = 0.8):
+
+    '''
+    Inputs:
+            generated_matches: output of generate_pos_neg_matches()
+            rules: a list of length 2 denoting the cutoff PERCENTILES for easy, medium and hard training examples
+            by distance. For example [0.05,0.95] means that closest 5% of distances are the easy examples, middle
+            90% are the normal and top 5% are the difficult
+
+    '''
     raise NotImplementedError
 
 
