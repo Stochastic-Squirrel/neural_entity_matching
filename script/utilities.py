@@ -33,13 +33,14 @@ g_train = g_train.rename(columns = {"price":"price_g","id":"id_g",'name':'title_
 # negative_amzn = amz_train[~amz_train.index.isin(perfect_matches.index.get_level_values("idAmazon"))]
 # negative_g = g_train[~g_train.index.isin(perfect_matches.index.get_level_values("idGoogleBase"))]
 
-
+# TODO: Need to think of a better way to handle sampling when the one table is MUCH smaller than the other
+# TODO: add in a naive method which simply takes a complete random sample of gen_neg_pos() without iteratively achieving proportions
 
 
 def calculate_edit_distance(x,cols):
     return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
 
-def generate_distance_samples(n, true_matches, negative_matches, id_names, distance_cols, plot = True, return_sim = False):
+def generate_distance_samples(n, true_matches, negative_matches, id_names, distance_cols, plot = True, return_sim = False, search_within = False):
     '''
     Inputs:
         n: Sample Size of true and positive match pairs to take WITHOUT replacement
@@ -51,31 +52,38 @@ def generate_distance_samples(n, true_matches, negative_matches, id_names, dista
                         list is second candidate entity columns. Columns are concatenated together to form a single
                         edit comparison string. [candidate_entity_1_cols, candidate_entity_2_cols]
                         All column names should reside in both the true_matches and negative_matches tables
+        search_within: Default False. If True, it combines the negative matches table together and returns negative pairs from the combined table.
+                        Consequently, negative pair outputs could be formed by looking within the same table.
 
     Outputs:
         (true_matches similarities, negative_matches similarities) 
     '''
 
-    if (n > negative_matches[0].shape[0] or n > negative_matches[1].shape[0] or n > true_matches.shape[0]):
-        raise ValueError('Sample size n is greater in length than at least one of the tables.')
+    if(~search_within):
+        if (n > negative_matches[0].shape[0] or n > negative_matches[1].shape[0] or n > true_matches.shape[0]):
+            raise ValueError('Sample size n is greater in length than at least one of the tables.')
 
-    negative_matches_sample = [None, None]
-    negative_matches_sample[0] = negative_matches[0].sample(n = n).reset_index(drop = False)
-    negative_matches_sample[1] = negative_matches[1].sample(n = n).reset_index(drop = False)
-    negative_matches_sample = pd.concat(negative_matches_sample, axis = 1)
-    negative_matches_sample = negative_matches_sample.set_index(id_names)
+        negative_matches_sample = [None, None]
+        negative_matches_sample[0] = negative_matches[0].sample(n = n).reset_index(drop = False)
+        negative_matches_sample[1] = negative_matches[1].sample(n = n).reset_index(drop = False)
+        negative_matches_sample = pd.concat(negative_matches_sample, axis = 1)
+        negative_matches_sample = negative_matches_sample.set_index(id_names)
 
-    true_matches_sample = true_matches.sample(n = n)
+        true_matches_sample = true_matches.sample(n = n)
+        
+        # Calculate pairwise similarities across each row
+        true_matches_sample["similarity"] = true_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
+        negative_matches_sample["similarity"] = negative_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
+
+        if plot:
+            sns.distplot(true_matches_sample.similarity)
+            sns.distplot(negative_matches_sample.similarity, color = "red")
+        if return_sim:
+            return (true_matches_sample.similarity, negative_matches_sample.similarity)
     
-    # Calculate pairwise similarities across each row
-    true_matches_sample["similarity"] = true_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
-    negative_matches_sample["similarity"] = negative_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
+    if(search_within):
+        # TODO: write a block which merges negative matches together and thus can return negative pairs from within the same table
 
-    if plot:
-        sns.distplot(true_matches_sample.similarity)
-        sns.distplot(negative_matches_sample.similarity, color = "red")
-    if return_sim:
-        return (true_matches_sample.similarity, negative_matches_sample.similarity)
 
 # # DEBUG distance function
 # true_matches = generated_matches[0]
@@ -140,7 +148,7 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     Inputs:
             generated_matches: output of generate_pos_neg_matches()
 
-            difficult_cutoff: 
+            difficult_cutoff: proportion of distance values that are defined as difficult 
 
             prop_train: proportion of data allocated to training DataFrame
     Outputs: 
@@ -164,30 +172,63 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     negative_matches = generated_matches[1]
 
     # Assign Indices in negative_matches
-    negative_matches[0] = negative_matches[0].set_index(keys = id_names[0])
-    negative_matches[1] = negative_matches[1].set_index(keys = id_names[1])
+    # negative_matches[0] = negative_matches[0].set_index(keys = id_names[0])
+    # negative_matches[1] = negative_matches[1].set_index(keys = id_names[1])
 
     pos_difficult_indices = []
     neg_difficult_indices = []
 
-    # Calcul
+    # Calculate the target sample number of difficult examples
+    pos_difficult_sample_target =  np.floor(generated_matches[0].shape[0] * difficult_cutoff)
+    neg_difficult_sample_target = np.floor(difficult_cutoff * min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) + np.floor( (max(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) - min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]))/2 ))
 
-    for _ in np.arange(10):
-        pos_indices, neg_indices = generate_distance_samples(100, positive_matches, negative_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]], False, True)
-        # Add indices to to *_difficult_indices iff they are beyond cutoff rules
+    sample_pos = True
+    sample_neg = True
+    iteration = 1
+    while (sample_pos | sample_neg) & (iteration < 10):
+        # Calculate Edit Distance for a random sample of positive and negative matches
+        pos_indices, neg_indices = generate_distance_samples(25, positive_matches, negative_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]], False, True)
+        
+        if(sample_pos):
+        # Add indices to to *_difficult_indices if they are beyond cutoff rules
         # therefore they are classified as being difficult examples
-        pos_difficult_indices.append(pos_indices[pos_indices <= pos_sim_cutoff].index)
-        neg_difficult_indices.append(neg_indices[neg_indices >= neg_sim_cutoff].index)
-        # Remove these stored indices from the tables to avoid double sampling
-        removed_pos_bool = positive_matches.index.isin(pos_indices[pos_indices <= pos_sim_cutoff].index)
-        positive_matches = positive_matches[~removed_pos_bool]
+            pos_difficult_indices.append(pos_indices[pos_indices <= pos_sim_cutoff].index)
+         # Remove these stored indices from the tables to avoid double sampling
+            removed_pos_bool = positive_matches.index.isin(pos_indices[pos_indices <= pos_sim_cutoff].index)
+            positive_matches = positive_matches[~removed_pos_bool]    
 
-        removed_neg_bool = negative_matches[0].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(0))
-        negative_matches[0] = negative_matches[0][~removed_neg_bool]
+        if(sample_neg):
+            neg_difficult_indices.append(neg_indices[neg_indices >= neg_sim_cutoff].index)
 
-        removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
-        negative_matches[1] = negative_matches[1][~removed_neg_bool]
+            removed_neg_bool = negative_matches[0].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(0))
+            negative_matches[0] = negative_matches[0][~removed_neg_bool]
+
+            removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
+            negative_matches[1] = negative_matches[1][~removed_neg_bool] 
+
+
+        # pos_difficult_indices.append(pos_indices[pos_indices <= pos_sim_cutoff].index)
+        # neg_difficult_indices.append(neg_indices[neg_indices >= neg_sim_cutoff].index)
+
+        # # Remove these stored indices from the tables to avoid double sampling
+        # removed_pos_bool = positive_matches.index.isin(pos_indices[pos_indices <= pos_sim_cutoff].index)
+        # positive_matches = positive_matches[~removed_pos_bool]
+
+        # removed_neg_bool = negative_matches[0].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(0))
+        # negative_matches[0] = negative_matches[0][~removed_neg_bool]
+
+        # removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
+        # negative_matches[1] = negative_matches[1][~removed_neg_bool]
+        
         # Check if target density of difficuly examples have been achieved, if it has simply randomly sample the rest and don't calc distances 
+        total_pos_difficult = np.sum(list(map(len,pos_difficult_indices)))
+        total_neg_difficult = np.sum(list(map(len,neg_difficult_indices)))
+
+        if(total_pos_difficult >= pos_difficult_sample_target): sample_pos = False
+        if(total_neg_difficult >= neg_difficult_sample_target): sample_neg = False
+        
+        iteration += 1
+        
 
 
     
@@ -205,7 +246,7 @@ created_matches = generate_pos_neg_matches(matches_train,
 generated_matches = created_matches
 id_names = ["id_amzn","id_g"]
 prop_train = 0.8
-difficult_cutoff = 0.9
+difficult_cutoff = 0.1
 
 
 
