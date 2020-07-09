@@ -7,23 +7,13 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
-# Generate a perfect match table
-## Join Amazon Products
-# perfect_matches = pd.merge(amz_train, matches_train, how = 'inner', left_index=  True , right_on = matches_train.index.get_level_values("idAmazon"), suffixes = ("amzn_x","amzn_y"))
-# perfect_matches = perfect_matches.iloc[:,2:5]
-# ## Join Google Products
-# perfect_matches = pd.merge(g_train, perfect_matches, how = 'inner', left_index=  True , right_on = perfect_matches.index.get_level_values("idGoogleBase"), suffixes = ("g_x","g_y"))
-# perfect_matches = perfect_matches.rename(columns = {'name':'title_g', "description":"description_g","manufacturer":"manufacturer_g"})
-# ## Remove junk columns
-# perfect_matches.drop(columns = ['key_0', 'Unnamed: 0'],inplace = True)
-# # Generate Negative Match table
-# ## These rows are not involved in a match AT ALL. Need to reconstruct convincing negative pairs via edit distance
-# negative_amzn = amz_train[~amz_train.index.isin(perfect_matches.index.get_level_values("idAmazon"))]
-# negative_g = g_train[~g_train.index.isin(perfect_matches.index.get_level_values("idGoogleBase"))]
 
 # TODO: Need to think of a better way to handle sampling when the one table is MUCH smaller than the other
 # TODO: add in a naive method which simply takes a complete random sample of gen_neg_pos() without iteratively achieving proportions
-
+# TODO: add in a custom sample size option for generate_em_train_Valid_split
+# TODO: add in a test set processing function 
+# TODO: allow generate_em to take in a seed for reproducibility
+# TODO: return valuable meta data for a training set such as pos-neg difficult cutoff units
 
 def calculate_edit_distance(x,cols):
     return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
@@ -75,9 +65,6 @@ def generate_distance_samples(pos_n, neg_n, true_matches, negative_matches, id_n
         sns.distplot(negative_matches_sample.similarity, color = "red")
     if return_sim:
         return (true_matches_sample.similarity, negative_matches_sample.similarity)
-
-    
-
 
 # # DEBUG distance function
 # true_matches = generated_matches[0]
@@ -333,10 +320,10 @@ created_matches = generate_pos_neg_matches(matches_train,
        'price_g'])
 
 # DEbug generate train valid
-generated_matches = created_matches
-id_names = ["id_amzn","id_g"]
-prop_train = 0.8
-difficult_cutoff = 0.1
+# generated_matches = created_matches
+# id_names = ["id_amzn","id_g"]
+# prop_train = 0.8
+# difficult_cutoff = 0.1
 
 
 X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]])
@@ -347,7 +334,7 @@ X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_match
 generate_distance_samples(200, 200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
 
 
-# TODO preprocess
+
 quora_train = pd.read_csv("../data/quora/quora_train.csv",index_col =  ["qid1","qid2"])
 quora_train = quora_train.drop(columns = ["Unnamed: 0","id"])
 
@@ -363,3 +350,6 @@ created_matches_quora = generate_pos_neg_matches(quora_matches,
                                             ['question1','question2'])
 
 X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]])
+
+
+generate_distance_samples(10000, 10000, created_matches_quora[0], created_matches_quora[1], ["qid1","qid2"], [["question1"],["question2"]])
