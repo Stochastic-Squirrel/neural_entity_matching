@@ -175,8 +175,8 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     neg_sim_cutoff = np.quantile(neg_sim, 1-difficult_cutoff)
 
     # Iteratively Sample until we have the desired proportion of difficult negative and positive matches
-    positive_matches = generated_matches[0]
-    negative_matches = generated_matches[1]
+    positive_matches = generated_matches[0].copy()
+    negative_matches = generated_matches[1].copy()
 
     # Assign Indices in negative_matches
     # negative_matches[0] = negative_matches[0].set_index(keys = id_names[0])
@@ -184,6 +184,9 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
 
     pos_difficult_indices = []
     neg_difficult_indices = []
+
+
+    
 
     # Calculate the target sample number of difficult examples
     pos_difficult_sample_target =  round(generated_matches[0].shape[0] * difficult_cutoff, 0)
@@ -239,19 +242,6 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
             removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
             negative_matches[1] = negative_matches[1][~removed_neg_bool] 
 
-
-        # pos_difficult_indices.append(pos_indices[pos_indices <= pos_sim_cutoff].index)
-        # neg_difficult_indices.append(neg_indices[neg_indices >= neg_sim_cutoff].index)
-
-        # # Remove these stored indices from the tables to avoid double sampling
-        # removed_pos_bool = positive_matches.index.isin(pos_indices[pos_indices <= pos_sim_cutoff].index)
-        # positive_matches = positive_matches[~removed_pos_bool]
-
-        # removed_neg_bool = negative_matches[0].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(0))
-        # negative_matches[0] = negative_matches[0][~removed_neg_bool]
-
-        # removed_neg_bool = negative_matches[1].index.isin(neg_indices[neg_indices >= neg_sim_cutoff].index.get_level_values(1))
-        # negative_matches[1] = negative_matches[1][~removed_neg_bool]
         
         # Check if target density of difficuly examples have been achieved, if it has simply randomly sample the rest and don't calc distances 
         total_pos_difficult = np.sum(list(map(len,pos_difficult_indices)))
@@ -262,11 +252,60 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
         
         iteration += 1
         
-    # Now that the difficult positive and negative examples have been sampled, randomly sample to fill the rest
+    # Reinitialise positive and negative matches for pulling data
+    positive_matches = generated_matches[0].copy()
+    negative_matches = generated_matches[1].copy()
+
+    
     # collapse indices to a single list entry
-    pos_difficult_indices = pos_difficult_indices[0].union(pos_difficult_indices[1:])
-    neg_difficult_indices = neg_difficult_indices[0].union(pos_difficult_indices[1:])
-    # TODO: now finally sample the rest non-difficult indices and create Train and Validation
+    pos_difficult_indices = reduce(lambda l1, l2: l1.union(l2), pos_difficult_indices)
+    neg_difficult_indices = reduce(lambda l1, l2: l1.union(l2), neg_difficult_indices)
+    
+    pos_easy_indices = positive_matches.index[~positive_matches.index.isin(pos_difficult_indices)]
+    neg_easy_indices = [None] * 2
+    neg_easy_indices[0] = negative_matches[0].index[~negative_matches[0].index.isin(neg_difficult_indices.get_level_values(0))]
+    neg_easy_indices[1] = negative_matches[1].index[~negative_matches[1].index.isin(neg_difficult_indices.get_level_values(1))]
+    # Need to figure out which table in the negative EASY indices is the smallest so we stick negative examples
+    # from the other table onto it and discard the remainder
+    # Below we actually pull the data 
+    max_easy_example_size = min(neg_easy_indices[0].shape[0], neg_easy_indices[1].shape[0])
+    neg_easy_samples = pd.concat([negative_matches[0].loc[neg_easy_indices[0]].sample(n = max_easy_example_size).reset_index(), \
+                                   negative_matches[1].loc[neg_easy_indices[1]].sample(n = max_easy_example_size).reset_index() ],axis = 1)
+    neg_easy_samples = neg_easy_samples.set_index(keys = id_names)
+
+    # TODO: REVIEW THIS LOGIC SOMETHING IS WRONG. What we want is a dataframe consisting of negative difficuly examples!!
+    # Also need to stitch together the difficult matches into a dataframe
+    max_diff_example_size = min(neg_difficult_indices[0].shape[0], neg_difficult_indices[1].shape[0])
+    neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices[0]].sample(n = max_diff_example_size).reset_index(), \
+                                   negative_matches[1].loc[neg_difficult_indices[1]].sample(n = max_diff_example_size).reset_index() ],axis = 1)
+    neg_diff_samples = neg_diff_samples.set_index(keys = id_names)
+    
+    # Now Create the Actual DataFrames for train and valid
+    ## Create Indices for positive and negative matches taking random samples in proportion using prop_train
+    train_pos_diff = pos_difficult_indices[0:np.int(pos_difficult_indices.shape[0]*prop_train)]
+    train_pos_easy = pos_easy_indices[0:np.int(pos_easy_indices.shape[0]*prop_train)]
+
+    valid_pos_diff = pos_difficult_indices[np.int(pos_difficult_indices.shape[0]*prop_train):]
+    valid_pos_easy = pos_easy_indices[np.int(pos_easy_indices.shape[0]*prop_train):]
+
+    train_neg_diff  = neg_difficult_indices[0:np.int(neg_difficult_indices.shape[0]*prop_train)]
+    train_neg_easy = neg_easy_samples.index[0:np.int(max_easy_example_size*prop_train)]
+
+    valid_neg_diff = neg_difficult_indices[np.int(neg_difficult_indices.shape[0]*prop_train):]
+    valid_neg_easy = neg_easy_samples.index[np.int(max_easy_example_size*prop_train):]
+
+    ## Compile Train and Validation
+    X_train = pd.concat([positive_matches.loc[train_pos_diff.union(train_pos_easy),:], \
+                        negative_     ])
+
+    np.int(pos_easy_indices.shape[0]*prop_train)
+
+
+    # For validation set
+
+
+    # Mix in the positive and negative difficult examples into Train and Validation
+    
 
 
     
@@ -313,3 +352,11 @@ pos_difficult_indices.shape
 # # Now Stitch them together 
 # remaining_negative = pd.concat([remaining_negative.iloc[0:remaining_negative_halfway_point,:].reset_index(), remaining_negative.iloc[remaining_negative_halfway_point:,:].reset_index()  ],axis = 1)
 # remaining_negative = remaining_negative.set_index(keys = id_names[largest_table_pos])
+
+from itertools import chain
+len(list(chain(*pos_difficult_indices)))
+
+# iterively concatenate rather???
+pos_difficult_indices[0].union(pos_difficult_indices[1])
+
+from functools import reduce
