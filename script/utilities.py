@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 import os
+from functools import reduce
 
 
 
@@ -274,10 +275,11 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     neg_easy_samples = neg_easy_samples.set_index(keys = id_names)
 
     # TODO: REVIEW THIS LOGIC SOMETHING IS WRONG. What we want is a dataframe consisting of negative difficuly examples!!
+    # TODO: again this is fucking up it is not pulling out anything with th
     # Also need to stitch together the difficult matches into a dataframe
-    max_diff_example_size = min(neg_difficult_indices[0].shape[0], neg_difficult_indices[1].shape[0])
-    neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices[0]].sample(n = max_diff_example_size).reset_index(), \
-                                   negative_matches[1].loc[neg_difficult_indices[1]].sample(n = max_diff_example_size).reset_index() ],axis = 1)
+    max_diff_example_size = len(neg_difficult_indices)
+    neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices.get_level_values(0)].sample(n = max_diff_example_size).reset_index(), \
+                                   negative_matches[1].loc[neg_difficult_indices.get_level_values(1)].sample(n = max_diff_example_size).reset_index() ],axis = 1)
     neg_diff_samples = neg_diff_samples.set_index(keys = id_names)
     
     # Now Create the Actual DataFrames for train and valid
@@ -296,16 +298,20 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
 
     ## Compile Train and Validation
     X_train = pd.concat([positive_matches.loc[train_pos_diff.union(train_pos_easy),:], \
-                        negative_     ])
-
-    np.int(pos_easy_indices.shape[0]*prop_train)
-
-
-    # For validation set
+                        neg_diff_samples.loc[train_neg_diff,:], \
+                        neg_easy_samples.loc[train_neg_easy,:]],axis = 0).reset_index()
+    X_train = X_train.set_index(keys = id_names)
 
 
-    # Mix in the positive and negative difficult examples into Train and Validation
-    
+    X_valid = pd.concat([positive_matches.loc[valid_pos_diff.union(valid_pos_easy),:], \
+                        neg_diff_samples.loc[valid_neg_diff,:], \
+                        neg_easy_samples.loc[valid_neg_easy,:]],axis = 0).reset_index()
+    X_valid = X_valid.set_index(keys = id_names)
+
+    ## Create Target Vectors
+
+
+
 
 
     
@@ -359,4 +365,4 @@ len(list(chain(*pos_difficult_indices)))
 # iterively concatenate rather???
 pos_difficult_indices[0].union(pos_difficult_indices[1])
 
-from functools import reduce
+
