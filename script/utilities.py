@@ -7,19 +7,6 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
-
-
-amz_train = pd.read_csv("../data/amazon_google/Amazon_train.csv")
-g_train = pd.read_csv("../data/amazon_google/Google_train.csv")
-
-matches_train = pd.read_csv("../data/amazon_google/AG_perfect_matching_train.csv")
-matches_test = pd.read_csv("../data/amazon_google/AG_perfect_matching_test.csv")
-
-matches_train.columns = ["unknown","id_amzn","id_g"]
-
-amz_train = amz_train.rename(columns = {"price":"price_amzn","id":"id_amzn",'title':'title_amzn', "description":"description_amzn","manufacturer":"manufacturer_amzn"} )
-g_train = g_train.rename(columns = {"price":"price_g","id":"id_g",'name':'title_g', "description":"description_g","manufacturer":"manufacturer_g"})
-
 # Generate a perfect match table
 ## Join Amazon Products
 # perfect_matches = pd.merge(amz_train, matches_train, how = 'inner', left_index=  True , right_on = matches_train.index.get_level_values("idAmazon"), suffixes = ("amzn_x","amzn_y"))
@@ -109,7 +96,7 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
 
             id_names: Names of the ID columns found in positive_matching_table and in table list
 
-            feature_cols: names of the features across both tables in table_lists which need to be returned
+            feature_cols: names of the features across both tables in table_lists which need to be returned. A single entry list NOT A LISTED ONE
     Outputs:
             (positive_matches, negative_matches)
     '''
@@ -149,14 +136,14 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
 #        'price_g']
 # positive_matching_table = matches_train
 
-def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff = 0.1, prop_train = 0.8):
+def generate_em_train_valid_split(generated_matches, id_names, feature_cols, difficult_cutoff = 0.1, prop_train = 0.8):
 
     '''
     Inputs:
             generated_matches: output of generate_pos_neg_matches()
 
             difficult_cutoff: proportion of distance values that are defined as difficult 
-
+            feature_cols: list of length 2 indicating which columns to use for distance measure
             prop_train: proportion of data allocated to training DataFrame
     Outputs: 
             (X_train, y_train, X_valid, y_valid)
@@ -165,11 +152,11 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
 
     total_size = generated_matches[0].shape[0] + min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) 
     train_size = round(total_size * prop_train,0)
-    valid_size = total_size - train_size
+
 
     # TODO: repeat this 5 times and take average
     # First, generate a cutoff rule in terms of similarity measure units according to difficult_cutoff
-    pos_sim, neg_sim = generate_distance_samples(100, 100, generated_matches[0], generated_matches[1], id_names, [["title_g","description_g"],["title_amzn","description_amzn"]], False, True)
+    pos_sim, neg_sim = generate_distance_samples(100, 100, generated_matches[0], generated_matches[1], id_names, feature_cols, False, True)
     # Lowest similarity is more difficult for positive matches and higher similarity
     # is more difficult for negative matches
     pos_sim_cutoff = np.quantile(pos_sim, difficult_cutoff)
@@ -224,7 +211,7 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
         # print(f"Iteration {iteration} with pos_n:{pos_n} and neg_n {neg_n}")
 
         # Calculate Edit Distance for a random sample of positive and negative matches
-        pos_indices, neg_indices = generate_distance_samples(pos_n, neg_n, positive_matches, negative_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]], False, True)
+        pos_indices, neg_indices = generate_distance_samples(pos_n, neg_n, positive_matches, negative_matches, id_names, feature_cols, False, True)
         
         if(sample_pos):
         # Add indices to to *_difficult_indices if they are beyond cutoff rules
@@ -319,6 +306,22 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
 
 
 
+
+
+
+amz_train = pd.read_csv("../data/amazon_google/Amazon_train.csv")
+g_train = pd.read_csv("../data/amazon_google/Google_train.csv")
+
+matches_train = pd.read_csv("../data/amazon_google/AG_perfect_matching_train.csv")
+matches_test = pd.read_csv("../data/amazon_google/AG_perfect_matching_test.csv")
+
+matches_train.columns = ["unknown","id_amzn","id_g"]
+
+amz_train = amz_train.rename(columns = {"price":"price_amzn","id":"id_amzn",'title':'title_amzn', "description":"description_amzn","manufacturer":"manufacturer_amzn"} )
+g_train = g_train.rename(columns = {"price":"price_g","id":"id_g",'name':'title_g', "description":"description_g","manufacturer":"manufacturer_g"})
+
+
+
     
 
 
@@ -336,7 +339,7 @@ prop_train = 0.8
 difficult_cutoff = 0.1
 
 
-X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names)
+X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]])
 
 
 
@@ -344,3 +347,19 @@ X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_match
 generate_distance_samples(200, 200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
 
 
+# TODO preprocess
+quora_train = pd.read_csv("../data/quora/quora_train.csv",index_col =  ["qid1","qid2"])
+quora_train = quora_train.drop(columns = ["Unnamed: 0","id"])
+
+
+quora_matches = quora_train[quora_train.is_duplicate == 1].drop(columns = ["question1","question2","is_duplicate"]).reset_index()
+qid1_table = quora_train.loc[:,"question1"].reset_index().loc[:,["qid1","question1"]]
+qid2_table = quora_train.loc[:,"question2"].reset_index().loc[:,["qid2","question2"]]
+
+
+created_matches_quora = generate_pos_neg_matches(quora_matches,
+                                            [qid1_table, qid2_table], 
+                                            ["qid1","qid2"], 
+                                            ['question1','question2'])
+
+X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]])
