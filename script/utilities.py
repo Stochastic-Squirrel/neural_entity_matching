@@ -274,8 +274,6 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
                                    negative_matches[1].loc[neg_easy_indices[1]].sample(n = max_easy_example_size).reset_index() ],axis = 1)
     neg_easy_samples = neg_easy_samples.set_index(keys = id_names)
 
-    # TODO: REVIEW THIS LOGIC SOMETHING IS WRONG. What we want is a dataframe consisting of negative difficuly examples!!
-    # TODO: again this is fucking up it is not pulling out anything with th
     # Also need to stitch together the difficult matches into a dataframe
     max_diff_example_size = len(neg_difficult_indices)
     neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices.get_level_values(0)].sample(n = max_diff_example_size).reset_index(), \
@@ -290,10 +288,10 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
     valid_pos_diff = pos_difficult_indices[np.int(pos_difficult_indices.shape[0]*prop_train):]
     valid_pos_easy = pos_easy_indices[np.int(pos_easy_indices.shape[0]*prop_train):]
 
-    train_neg_diff  = neg_difficult_indices[0:np.int(neg_difficult_indices.shape[0]*prop_train)]
+    train_neg_diff  = neg_diff_samples.index[0:np.int(max_diff_example_size*prop_train)]
     train_neg_easy = neg_easy_samples.index[0:np.int(max_easy_example_size*prop_train)]
 
-    valid_neg_diff = neg_difficult_indices[np.int(neg_difficult_indices.shape[0]*prop_train):]
+    valid_neg_diff = neg_diff_samples.index[np.int(max_diff_example_size*prop_train):]
     valid_neg_easy = neg_easy_samples.index[np.int(max_easy_example_size*prop_train):]
 
     ## Compile Train and Validation
@@ -301,15 +299,22 @@ def generate_em_train_valid_split(generated_matches, id_names, difficult_cutoff 
                         neg_diff_samples.loc[train_neg_diff,:], \
                         neg_easy_samples.loc[train_neg_easy,:]],axis = 0).reset_index()
     X_train = X_train.set_index(keys = id_names)
-
+    
+    number_matches_train = len(train_pos_diff.union(train_pos_easy))
+    
 
     X_valid = pd.concat([positive_matches.loc[valid_pos_diff.union(valid_pos_easy),:], \
                         neg_diff_samples.loc[valid_neg_diff,:], \
                         neg_easy_samples.loc[valid_neg_easy,:]],axis = 0).reset_index()
     X_valid = X_valid.set_index(keys = id_names)
 
-    ## Create Target Vectors
+    number_matches_valid = len(valid_pos_diff.union(valid_pos_easy))
 
+    ## Create Target Vectors
+    Y_train = [1]*number_matches_train + [0]*(X_train.shape[0]-number_matches_train)
+    Y_valid = [1]*number_matches_valid + [0]*(X_valid.shape[0]-number_matches_valid)
+
+    return X_train, Y_train, X_valid, Y_valid
 
 
 
@@ -324,7 +329,6 @@ created_matches = generate_pos_neg_matches(matches_train,
        'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
        'price_g'])
 
-
 # DEbug generate train valid
 generated_matches = created_matches
 id_names = ["id_amzn","id_g"]
@@ -332,37 +336,11 @@ prop_train = 0.8
 difficult_cutoff = 0.1
 
 
+X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names)
+
+
+
 
 generate_distance_samples(200, 200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
-
-
-
-
-pos_difficult_indices.shape
-
-# TODO: need to decide what to do about cases when you have outsampled the other table
-# should we just discard or what???????
-
-# negative_tables = created_matches[1]
-# # Create maximal negative comparison table across the two tables
-# max_across = min(negative_tables[0].shape[0], negative_tables[1].shape[0])
-# across_table = pd.concat([negative_tables[0].iloc[0:max_across].reset_index(),negative_tables[1].iloc[0:max_across].reset_index()],axis = 1)
-# across_table = across_table.set_index(keys = id_names)
-
-# # Take the remainder of the biggest table and randomly create pairs
-# largest_table_pos = [i for i,x in enumerate(negative_tables) if x.shape[0] > max_across][0]
-# remaining_negative = negative_tables[largest_table_pos].iloc[max_across:]
-# # Shave off a row if it is an odd number
-# if remaining_negative.shape[0] % 2 > 0: remaining_negative = remaining_negative[1:]
-# remaining_negative_halfway_point = np.int((remaining_negative.shape[0])/2)
-# # Now Stitch them together 
-# remaining_negative = pd.concat([remaining_negative.iloc[0:remaining_negative_halfway_point,:].reset_index(), remaining_negative.iloc[remaining_negative_halfway_point:,:].reset_index()  ],axis = 1)
-# remaining_negative = remaining_negative.set_index(keys = id_names[largest_table_pos])
-
-from itertools import chain
-len(list(chain(*pos_difficult_indices)))
-
-# iterively concatenate rather???
-pos_difficult_indices[0].union(pos_difficult_indices[1])
 
 
