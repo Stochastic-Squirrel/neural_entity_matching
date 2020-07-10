@@ -11,14 +11,13 @@ from functools import reduce
 # TODO: Need to think of a better way to handle sampling when the one table is MUCH smaller than the other
 # TODO: add in a naive method which simply takes a complete random sample of gen_neg_pos() without iteratively achieving proportions
 # TODO: add in a custom sample size option for generate_em_train_Valid_split
-# TODO: add in a test set processing function 
 # TODO: allow generate_em to take in a seed for reproducibility
 # TODO: return valuable meta data for a training set such as pos-neg difficult cutoff units
 
 def calculate_edit_distance(x,cols):
     return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
 
-def generate_distance_samples(pos_n, neg_n, true_matches, negative_matches, id_names, distance_cols, plot = True, return_sim = False, search_within = False):
+def generate_distance_samples(pos_n, neg_n, true_matches, negative_matches, id_names, distance_cols, plot = True, return_sim = False, search_within = False, seed = 420):
     '''
     Inputs:
         pos_n: Sample Size of true positive match pairs to take WITHOUT replacement
@@ -45,8 +44,8 @@ def generate_distance_samples(pos_n, neg_n, true_matches, negative_matches, id_n
     negative_matches_sample = [None, None]
 
     if (neg_n > 0):
-        negative_matches_sample[0] = negative_matches[0].sample(n = neg_n).reset_index(drop = False)
-        negative_matches_sample[1] = negative_matches[1].sample(n = neg_n).reset_index(drop = False)
+        negative_matches_sample[0] = negative_matches[0].sample(n = neg_n, random_state = seed).reset_index(drop = False)
+        negative_matches_sample[1] = negative_matches[1].sample(n = neg_n, random_state = seed).reset_index(drop = False)
         negative_matches_sample = pd.concat(negative_matches_sample, axis = 1)
         negative_matches_sample = negative_matches_sample.set_index(id_names)
         # Calculate pairwise similarities across each row
@@ -55,7 +54,7 @@ def generate_distance_samples(pos_n, neg_n, true_matches, negative_matches, id_n
         negative_matches_sample = pd.DataFrame({"similarity":[-1000]})
 
     if (pos_n > 0):
-        true_matches_sample = true_matches.sample(n = pos_n)
+        true_matches_sample = true_matches.sample(n = pos_n, random_state = seed)
         true_matches_sample["similarity"] = true_matches_sample.apply(axis = 1, func = calculate_edit_distance, cols = distance_cols)
     else:
         true_matches_sample = pd.DataFrame({"similarity":[-1000]})
@@ -123,7 +122,7 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
 #        'price_g']
 # positive_matching_table = matches_train
 
-def generate_em_train_valid_split(generated_matches, id_names, feature_cols, difficult_cutoff = 0.1, prop_train = 0.8):
+def generate_em_train_valid_split(generated_matches, id_names, feature_cols, difficult_cutoff = 0.1, prop_train = 0.8, seed = 420):
 
     '''
     Inputs:
@@ -132,7 +131,8 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
             difficult_cutoff: proportion of distance values that are defined as difficult 
             feature_cols: list of length 2 indicating which columns to use for distance measure
             prop_train: proportion of data allocated to training DataFrame
-    Outputs: 
+    Outputs:
+            1 = Duplicate/Match; 0 = Non-match
             (X_train, y_train, X_valid, y_valid)
 
     '''
@@ -244,14 +244,14 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
     # from the other table onto it and discard the remainder
     # Below we actually pull the data 
     max_easy_example_size = min(neg_easy_indices[0].shape[0], neg_easy_indices[1].shape[0])
-    neg_easy_samples = pd.concat([negative_matches[0].loc[neg_easy_indices[0]].sample(n = max_easy_example_size).reset_index(), \
-                                   negative_matches[1].loc[neg_easy_indices[1]].sample(n = max_easy_example_size).reset_index() ],axis = 1)
+    neg_easy_samples = pd.concat([negative_matches[0].loc[neg_easy_indices[0]].sample(n = max_easy_example_size, random_state = seed).reset_index(), \
+                                   negative_matches[1].loc[neg_easy_indices[1]].sample(n = max_easy_example_size, random_state = seed).reset_index() ],axis = 1)
     neg_easy_samples = neg_easy_samples.set_index(keys = id_names)
 
     # Also need to stitch together the difficult matches into a dataframe
     max_diff_example_size = len(neg_difficult_indices)
-    neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices.get_level_values(0)].sample(n = max_diff_example_size).reset_index(), \
-                                   negative_matches[1].loc[neg_difficult_indices.get_level_values(1)].sample(n = max_diff_example_size).reset_index() ],axis = 1)
+    neg_diff_samples = pd.concat([negative_matches[0].loc[neg_difficult_indices.get_level_values(0)].sample(n = max_diff_example_size, random_state = seed).reset_index(), \
+                                   negative_matches[1].loc[neg_difficult_indices.get_level_values(1)].sample(n = max_diff_example_size, random_state = seed).reset_index() ],axis = 1)
     neg_diff_samples = neg_diff_samples.set_index(keys = id_names)
     
     # Now Create the Actual DataFrames for train and valid
@@ -292,6 +292,35 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
 
 
 
+def generate_em_test_set(generated_matches, id_names, seed = 420):
+
+    '''
+    Inputs:
+        generated_matches: a generate_pos_neg_matches() object generated from test set data
+        id_names: list of length 2 consisting of the string names of the left table and right table.
+                The order of the id_names is critical and must match the table_list order in generate_pos_neg_matches()
+
+    Outputs:
+        1 = Duplicate/Match; 0 = Non-match
+        X_test, y_test  
+
+    '''
+
+    # Extract the positive and negative matches
+    positive_matches = generated_matches[0].copy()
+    negative_matches = generated_matches[1].copy()
+    # Can only create number of  negative test set matches equal to min of samples from two tables
+    max_negative_matches = min(negative_matches[0].shape[0], negative_matches[1].shape[0])
+
+    test_set_negative = pd.concat([negative_matches[0].sample(n = max_negative_matches).reset_index(), negative_matches[1].sample(n = max_negative_matches, random_state = seed).reset_index()],axis = 1)
+    test_set_negative = test_set_negative.set_index(keys = id_names)
+
+    X_test = pd.concat([positive_matches,test_set_negative])
+    Y_test = [1]* positive_matches.shape[0] + [0]*max_negative_matches
+
+    return X_test, Y_test
+
+
 
 
 
@@ -299,14 +328,21 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
 amz_train = pd.read_csv("../data/amazon_google/Amazon_train.csv")
 g_train = pd.read_csv("../data/amazon_google/Google_train.csv")
 
+amz_test = pd.read_csv("../data/amazon_google/Amazon_test.csv")
+g_test = pd.read_csv("../data/amazon_google/Google_test.csv")
+
+
 matches_train = pd.read_csv("../data/amazon_google/AG_perfect_matching_train.csv")
 matches_test = pd.read_csv("../data/amazon_google/AG_perfect_matching_test.csv")
 
 matches_train.columns = ["unknown","id_amzn","id_g"]
+matches_test.columns = ["unknown","id_amzn","id_g"]
 
 amz_train = amz_train.rename(columns = {"price":"price_amzn","id":"id_amzn",'title':'title_amzn', "description":"description_amzn","manufacturer":"manufacturer_amzn"} )
 g_train = g_train.rename(columns = {"price":"price_g","id":"id_g",'name':'title_g', "description":"description_g","manufacturer":"manufacturer_g"})
 
+amz_test = amz_test.rename(columns = {"price":"price_amzn","id":"id_amzn",'title':'title_amzn', "description":"description_amzn","manufacturer":"manufacturer_amzn"} )
+g_test = g_test.rename(columns = {"price":"price_g","id":"id_g",'name':'title_g', "description":"description_g","manufacturer":"manufacturer_g"})
 
 
     
@@ -320,10 +356,10 @@ created_matches = generate_pos_neg_matches(matches_train,
        'price_g'])
 
 # DEbug generate train valid
-# generated_matches = created_matches
-# id_names = ["id_amzn","id_g"]
-# prop_train = 0.8
-# difficult_cutoff = 0.1
+generated_matches = created_matches
+id_names = ["id_amzn","id_g"]
+prop_train = 0.8
+difficult_cutoff = 0.1
 
 
 X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]])
@@ -349,7 +385,18 @@ created_matches_quora = generate_pos_neg_matches(quora_matches,
                                             ["qid1","qid2"], 
                                             ['question1','question2'])
 
-X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]])
+X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]], seed = 69)
 
 
-generate_distance_samples(10000, 10000, created_matches_quora[0], created_matches_quora[1], ["qid1","qid2"], [["question1"],["question2"]])
+generate_distance_samples(100, 100, created_matches_quora[0], created_matches_quora[1], ["qid1","qid2"], [["question1"],["question2"]])
+
+# Now see if test set generation works
+
+created_matches_ag_test = generate_pos_neg_matches(matches_test,
+                                            [amz_test, g_test], 
+                                            ["id_amzn","id_g"], 
+                                            ['title_amzn', 'description_amzn',
+       'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
+       'price_g'])
+
+test_set_ag = generate_em_test_set(created_matches_ag_test, ["id_amzn","id_g"])
