@@ -7,6 +7,8 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
+# Script contains the abstract EM_Data class which produces training, valid and test sets
+# Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included
 
 class EM_Data:
     # Utility Functions
@@ -329,8 +331,6 @@ class EM_Data:
                                                                 id_names, \
                                                                 seed)
 
-
-
 class Amazon_Google:
 
     def __init__(self, seed, diff_sub_sample, difficult_cutoff, prop_train):
@@ -366,8 +366,7 @@ class Amazon_Google:
        diff_sub_sample,
        difficult_cutoff,
        prop_train)
-
-
+       
 class Quora:
     def __init__(self, seed, diff_sub_sample, difficult_cutoff, prop_train):
         quora_train = pd.read_csv("../data/quora/quora_train.csv",index_col =  ["qid1","qid2"])
@@ -401,7 +400,7 @@ class Quora:
 
 amz_goog = Amazon_Google(seed = 420, diff_sub_sample = 100, difficult_cutoff = 0.3, prop_train = 0.8)
 
-quora = Quora(seed = 420, diff_sub_sample = 1000, difficult_cutoff = 0.05, prop_train = 0.8)
+quora = Quora(seed = 420, diff_sub_sample = 10000, difficult_cutoff = 0.05, prop_train = 0.8)
 
 
 
