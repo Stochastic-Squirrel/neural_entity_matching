@@ -7,12 +7,7 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
-
-# TODO: Need to think of a better way to handle sampling when the one table is MUCH smaller than the other
 # TODO: add in a naive method which simply takes a complete random sample of gen_neg_pos() without iteratively achieving proportions
-# TODO: add in a custom sample size option for generate_em_train_Valid_split
-# TODO: allow generate_em to take in a seed for reproducibility
-# TODO: return valuable meta data for a training set such as pos-neg difficult cutoff units
 
 def calculate_edit_distance(x,cols):
     return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
@@ -122,18 +117,20 @@ def generate_pos_neg_matches(positive_matching_table, table_list, id_names, feat
 #        'price_g']
 # positive_matching_table = matches_train
 
-def generate_em_train_valid_split(generated_matches, id_names, feature_cols, difficult_cutoff = 0.1, prop_train = 0.8, seed = 420):
+def generate_em_train_valid_split(generated_matches, id_names, feature_cols, difficult_cutoff = 0.1, prop_train = 0.8, diff_sub_sample = 100, seed = 420):
 
     '''
     Inputs:
             generated_matches: output of generate_pos_neg_matches()
 
             difficult_cutoff: proportion of distance values that are defined as difficult 
+            diff_sub_sample: sample size the internal function uses to determine difficult and easy examples.
+                            Larger is better but will take longer to run. This should scale with the dataset size.
             feature_cols: list of length 2 indicating which columns to use for distance measure
             prop_train: proportion of data allocated to training DataFrame
     Outputs:
             1 = Duplicate/Match; 0 = Non-match
-            (X_train, y_train, X_valid, y_valid)
+            (X_train, y_train, X_valid, y_valid, meta_data_dictionary)
 
     '''
 
@@ -143,7 +140,7 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
 
     # TODO: repeat this 5 times and take average
     # First, generate a cutoff rule in terms of similarity measure units according to difficult_cutoff
-    pos_sim, neg_sim = generate_distance_samples(100, 100, generated_matches[0], generated_matches[1], id_names, feature_cols, False, True)
+    pos_sim, neg_sim = generate_distance_samples(diff_sub_sample, diff_sub_sample, generated_matches[0], generated_matches[1], id_names, feature_cols, False, True, seed = seed)
     # Lowest similarity is more difficult for positive matches and higher similarity
     # is more difficult for negative matches
     pos_sim_cutoff = np.quantile(pos_sim, difficult_cutoff)
@@ -181,16 +178,16 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
         if (min_sample_neg == 0):
             sample_neg = False
 
-        if (min_sample_pos > 100):
-            pos_n = 100
-        elif (min_sample_pos > 0 & min_sample_pos <= 100):
+        if (min_sample_pos > diff_sub_sample):
+            pos_n = diff_sub_sample
+        elif (min_sample_pos > 0 & min_sample_pos <= diff_sub_sample):
             pos_n = min_sample_pos
         else:
             pos_n = 0
 
-        if (min_sample_neg > 100):
-            neg_n = 100
-        elif (min_sample_neg > 0 & min_sample_neg <= 100):
+        if (min_sample_neg > diff_sub_sample):
+            neg_n = diff_sub_sample
+        elif (min_sample_neg > 0 & min_sample_neg <= diff_sub_sample):
             neg_n = min_sample_neg
         else:
             neg_n = 0
@@ -288,7 +285,9 @@ def generate_em_train_valid_split(generated_matches, id_names, feature_cols, dif
     Y_train = [1]*number_matches_train + [0]*(X_train.shape[0]-number_matches_train)
     Y_valid = [1]*number_matches_valid + [0]*(X_valid.shape[0]-number_matches_valid)
 
-    return X_train, Y_train, X_valid, Y_valid
+    meta_data = {"pos_neg_cutoffs":[pos_sim_cutoff, neg_sim_cutoff], "prop_pos_difficult":total_pos_difficult/total_size, "prop_neg_difficult": total_neg_difficult/total_size, "seed":seed, "diff_sub_sample":diff_sub_sample, "diff_target_ratio":difficult_cutoff}
+
+    return X_train, Y_train, X_valid, Y_valid, meta_data
 
 
 
@@ -362,12 +361,12 @@ prop_train = 0.8
 difficult_cutoff = 0.1
 
 
-X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]])
+X_train, y_train, X_valid, y_valid, meta_data = generate_em_train_valid_split(created_matches, id_names, [["title_g","description_g"],["title_amzn","description_amzn"]])
 
 
 
 
-generate_distance_samples(200, 200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
+#generate_distance_samples(200, 200, generated_matches[0], generated_matches[1], ["id_amzn","id_g"],[["title_g","description_g"],["title_amzn","description_amzn"]])
 
 
 
@@ -385,10 +384,10 @@ created_matches_quora = generate_pos_neg_matches(quora_matches,
                                             ["qid1","qid2"], 
                                             ['question1','question2'])
 
-X_train, y_train, X_valid, y_valid = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]], seed = 69)
+X_train, y_train, X_valid, y_valid, meta_data = generate_em_train_valid_split(created_matches_quora, ["qid1","qid2"], [["question1"],["question2"]], diff_sub_sample = 2000 ,seed = 69)
 
 
-generate_distance_samples(100, 100, created_matches_quora[0], created_matches_quora[1], ["qid1","qid2"], [["question1"],["question2"]])
+#generate_distance_samples(100, 100, created_matches_quora[0], created_matches_quora[1], ["qid1","qid2"], [["question1"],["question2"]])
 
 # Now see if test set generation works
 
@@ -400,3 +399,5 @@ created_matches_ag_test = generate_pos_neg_matches(matches_test,
        'price_g'])
 
 test_set_ag = generate_em_test_set(created_matches_ag_test, ["id_amzn","id_g"])
+
+
