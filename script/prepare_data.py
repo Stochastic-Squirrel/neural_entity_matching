@@ -2,6 +2,9 @@
 Script to create train-valid-test sets for Amzn and Quora data. Partitions sets into two different tables.
 Blocking is required to generate candidate pairs.
 '''
+
+# TODO: drop duplicates for the training and validation and test sets
+
 from utilities import *
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 amz_g_seed = 420
@@ -23,20 +26,20 @@ for i, dataset in enumerate([amz_goog, quora]):
     # Process Input Data Frames
     # Train
     lhs_train, rhs_train  = partition_data_set(dataset.data.train_valid_sets[0], dataset.data.id_names, dataset.data.feature_cols)
-    lhs_train.to_csv(current_filepath + "_X_train_lhs.csv")
-    rhs_train.to_csv(current_filepath + "_X_train_rhs.csv")
+    lhs_train.drop_duplicates().to_csv(current_filepath + "_X_train_lhs.csv")
+    rhs_train.drop_duplicates().to_csv(current_filepath + "_X_train_rhs.csv")
     dataset.data.train_valid_sets[1][dataset.data.train_valid_sets[1].y == 1].to_csv(current_filepath + "_y_train.csv")
 
     # Valid
     lhs_valid, rhs_valid  = partition_data_set(dataset.data.train_valid_sets[2], dataset.data.id_names, dataset.data.feature_cols)
-    lhs_valid.to_csv(current_filepath + "_X_valid_lhs.csv")
-    rhs_valid.to_csv(current_filepath + "_X_valid_rhs.csv")
+    lhs_valid.drop_duplicates().to_csv(current_filepath + "_X_valid_lhs.csv")
+    rhs_valid.drop_duplicates().to_csv(current_filepath + "_X_valid_rhs.csv")
     dataset.data.train_valid_sets[3][dataset.data.train_valid_sets[3].y == 1].to_csv(current_filepath + "_y_valid.csv")
 
     # Test
     lhs_test, rhs_test  = partition_data_set(dataset.data.test_sets[0], dataset.data.id_names, dataset.data.feature_cols)
-    lhs_test.to_csv(current_filepath + "_X_test_lhs.csv")
-    rhs_test.to_csv(current_filepath + "_X_test_rhs.csv")
+    lhs_test.drop_duplicates().to_csv(current_filepath + "_X_test_lhs.csv")
+    rhs_test.drop_duplicates().to_csv(current_filepath + "_X_test_rhs.csv")
     dataset.data.test_sets[1][dataset.data.test_sets[1].y == 1].to_csv(current_filepath + "_y_test.csv")
 
 
