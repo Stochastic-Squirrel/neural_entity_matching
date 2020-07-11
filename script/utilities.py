@@ -7,8 +7,10 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
-# Script contains the abstract EM_Data class which produces training, valid and test sets
-# Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included
+'''
+Script contains the abstract EM_Data class which produces training, valid and test sets
+Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included
+'''
 
 class EM_Data:
     # Utility Functions
@@ -333,6 +335,7 @@ class EM_Data:
         # Store Some General Meta Data at a class level
         self.id_names = id_names
         self.feature_cols = feature_cols
+        self.distance_cols = distance_cols
 class Amazon_Google:
 
     def __init__(self, seed, diff_sub_sample, difficult_cutoff, prop_train):
@@ -413,13 +416,3 @@ def partition_data_set(data_set, id_names, feature_cols):
     rhs_table_cols = feature_cols[column_bisection_index:] + [id_names[1]]
 
     return data_set.loc[:, lhs_table_cols], data_set.loc[:, rhs_table_cols]
-
-
-
-# amz_goog = Amazon_Google(seed = 420, diff_sub_sample = 100, difficult_cutoff = 0.3, prop_train = 0.8)
-
-# quora = Quora(seed = 420, diff_sub_sample = 10000, difficult_cutoff = 0.05, prop_train = 0.8)
-
-
-
-# partition_data_set(amz_goog.data.train_valid_sets[0], amz_goog.data.id_names, amz_goog.data.feature_cols)
