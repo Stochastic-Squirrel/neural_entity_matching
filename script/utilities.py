@@ -273,7 +273,10 @@ class EM_Data:
 
         ## Create Target Vectors
         Y_train = [1]*number_matches_train + [0]*(X_train.shape[0]-number_matches_train)
+        Y_train = pd.DataFrame({"y":Y_train}).set_index(X_train.index)
+
         Y_valid = [1]*number_matches_valid + [0]*(X_valid.shape[0]-number_matches_valid)
+        Y_valid = pd.DataFrame({"y":Y_valid}).set_index(X_valid.index)
 
         meta_data = {"pos_neg_cutoffs":[pos_sim_cutoff, neg_sim_cutoff], "prop_pos_difficult":total_pos_difficult/total_size, "prop_neg_difficult": total_neg_difficult/total_size, "seed":seed, "diff_sub_sample":diff_sub_sample, "diff_target_ratio":difficult_cutoff}
 
@@ -303,6 +306,7 @@ class EM_Data:
 
         X_test = pd.concat([positive_matches,test_set_negative])
         Y_test = [1]* positive_matches.shape[0] + [0]*max_negative_matches
+        Y_test = pd.DataFrame({"y":Y_test}).set_index(X_test.index)
 
         return X_test, Y_test
 
@@ -408,6 +412,9 @@ def partition_data_set(data_set, id_names, feature_cols):
     '''
     Utility function which takes in a data_set i.e X_train, X_valid, X_test and splits it into two DataFrames
     in prepartaion for blocking functions which will generate candidate tuples.
+
+    Inputs:
+        feature_cols: single list for names of all required feature columns
     '''
     data_set = data_set.reset_index()
     column_bisection_index = int(len(feature_cols)/2)

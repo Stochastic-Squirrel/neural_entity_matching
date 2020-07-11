@@ -22,7 +22,8 @@ def overlapped_attribute_blocking(data_set, blocking_cols, min_shared_tokens, fe
     '''
     overlap = em.OverlapBlocker()
    
-    data_set = amz_goog.data.train_valid_sets[0]
+    data_set = em.read_csv_metadata("../data/processed_amazon_google/amz_google_X_train.csv").reset_index()
+    em.set_key(data_set, "index")
     blocking_cols = ["manufacturer_amzn","manufacturer_g"]
     min_shared_tokens = 2
     feature_cols  = [['title_amzn',
@@ -54,14 +55,14 @@ def overlapped_attribute_blocking(data_set, blocking_cols, min_shared_tokens, fe
 
 
 
-overlapped_attribute_blocking(amz_goog.data.train_valid_sets[0], ["manufacturer_amzn","manufacturer_g"], 2, [['title_amzn',
- 'description_amzn',
- 'manufacturer_amzn',
- 'price_amzn'],
- ['title_g',
- 'description_g',
- 'manufacturer_g',
- 'price_g']], amz_goog.data.id_names)
+# overlapped_attribute_blocking(amz_goog.data.train_valid_sets[0], ["manufacturer_amzn","manufacturer_g"], 2, [['title_amzn',
+#  'description_amzn',
+#  'manufacturer_amzn',
+#  'price_amzn'],
+#  ['title_g',
+#  'description_g',
+#  'manufacturer_g',
+#  'price_g']], amz_goog.data.id_names)
 
 
 def locality_sensitive_hashing_blocking():
