@@ -5,16 +5,16 @@ import os
 import py_entitymatching as em
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-from utilities import partition_data_set
+from utilities import partition_data_set, calculate_edit_distance_tuples
 
 #https://onestopdataanalysis.com/lsh/
 # https://anhaidgroup.github.io/py_entitymatching/v0.3.2/singlepage.html
 #https://sites.google.com/site/anhaidgroup/projects/magellan/issues
 
+# https://anhaidgroup.github.io/py_entitymatching/v0.3.x/user_manual/blocking.html#types-of-blockers-and-blocker-hierarchy
 
 
-
-def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens, feature_cols, verbose = True):
+def overlapped_attribute_table_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens, feature_cols, verbose = True):
     '''
     Overlapp Blocking Algorithm
 
@@ -27,7 +27,6 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
         Candidate Tuples
 
     '''
-    # Clear Catalog of previous entries
  
     overlap = em.OverlapBlocker()
 
@@ -41,6 +40,14 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
     return candidate_pairs
 
 
+def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance, verbose = True):
+    '''
+    Computes Levenstein edit distance. If similarity is below cutoff_distance, return blocking == False, otherwise return True
+    '''
+
+
+
+# genreal function are .block_tables(),.block_tuples() and block_candidates()
 
 
 # TODO: need to wrap this in a function
@@ -69,7 +76,7 @@ feature_cols  = [['title_amzn',
 
 
 
-candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 4, feature_cols)
+candidates = overlapped_attribute_table_blocking(lhs_table, rhs_table, blocking_cols, 4, feature_cols)
 
 
 

@@ -423,3 +423,7 @@ def partition_data_set(data_set, id_names, feature_cols):
     rhs_table_cols = feature_cols[column_bisection_index:] + [id_names[1]]
 
     return data_set.loc[:, lhs_table_cols], data_set.loc[:, rhs_table_cols]
+
+
+def calculate_edit_distance_tuples(self, lhs_table, rhs_table, cols):
+        return fuzz.ratio("".join(str(lhs_table[cols[0]])), "".join(str(rhs_table[cols[1]])))
