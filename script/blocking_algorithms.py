@@ -69,6 +69,9 @@ def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance,
 
 
 def locality_sensitive_hashing_blocking():
+
+    #https://www.youtube.com/watch?v=n3dCcwWV4_k
+    #https://github.com/mattilyra/lsh
     raise NotImplementedError
 
 
@@ -105,10 +108,11 @@ cutoff_distance = 60
 candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 4, feature_cols)
 
 ## Take the candidates and block on top of it
-overlapped_attribute_blocking(None,None, blocking_cols, 12, feature_cols,True, candidates)
+overlapped_attribute_blocking(None,None, blocking_cols, 12, feature_cols, True, candidates)
 second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
 
 
+## NOTE! Union based blocking does also exists 
 
 
 
