@@ -6,7 +6,8 @@ import os
 import py_entitymatching as em
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from utilities import partition_data_set, calculate_edit_block_bool
-from lsh import minhash
+import itertools
+from lsh import cache, minhash # https://github.com/mattilyra/lsh
 
 
 #https://onestopdataanalysis.com/lsh/
@@ -26,7 +27,7 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
         feature_cols: list of length 2 indicating which columns to KEEP for further analysis
     
     Outputs
-        Candidate Tuples
+        Candidate Tuples -- a dataframe of Candidate Tuples across lhs_table to rhs_table
 
     '''
  
@@ -54,6 +55,9 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
 def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance, verbose = True, candidates = None):
     '''
     Computes Levenstein edit distance. If similarity is below cutoff_distance, return blocking == False, otherwise return True
+    
+    Outputs
+        Candidate Tuples -- a dataframe of Candidate Tuples across lhs_table to rhs_table
     '''
 
     # Define Blackbox/Custom User Function blocking object
@@ -77,7 +81,56 @@ def locality_sensitive_hashing_blocking():
     raise NotImplementedError
 
 
+# Credit: https://github.com/mattilyra/lsh
+def shingles(text, char_ngram=5):
+    return set(text[head:head + char_ngram] for head in range(0, len(text) - char_ngram))
 
+
+def jaccard(set_a, set_b):
+    intersection = set_a & set_b
+    union = set_a | set_b
+    return len(intersection) / len(union)
+
+
+def candidate_duplicates(lhs_table, rhs_table, char_ngram=5, seeds=100, bands=5, hashbytes=4):
+    '''
+    
+    
+    
+    '''
+
+    hasher = minhash.MinHasher(seeds=seeds, char_ngram=char_ngram, hashbytes=hashbytes)
+    if seeds % bands != 0:
+        raise ValueError('Seeds has to be a multiple of bands. {} % {} != 0'.format(seeds, bands))
+    
+    lshcache = cache.Cache(num_bands=bands, hasher=hasher)
+    for x in lhs_table.itertuples():
+        document_string = x[2] # title in this case
+        docid  = x[6]
+        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+    
+    for x in rhs_table.itertuples():
+        document_string = x[2] # title in this case
+        docid  = x[6]
+        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+
+
+    candidate_pairs = set()
+    for b in lshcache.bins:
+        for bucket_id in b:
+            if len(b[bucket_id]) > 1:
+                pairs_ = set(itertools.combinations(b[bucket_id], r=2))
+                candidate_pairs.update(pairs_)
+    
+    return candidate_pairs
+
+
+
+
+
+
+
+# Magellan Way
 # TODO: need to wrap this in a function
 # Read in Data into memory
 em.del_catalog()
@@ -117,4 +170,25 @@ second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, ca
 ## NOTE! Union based blocking does also exists 
 
 
+# LSH Hashing
+# https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
 
+# # Seeds = number of hash functions = k
+# # bands = number of groups
+# hasher = minhash.MinHasher(seeds=100, char_ngram=5, hashbytes=4)
+# lshcache = cache.Cache(bands=10, hasher=hasher)
+
+# # read in the data file and add the first 100 documents to the LSH cache
+# lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
+
+
+# # for every bucket in the LSH cache get the candidate duplicates
+# candidate_pairs = set()
+# for b in lshcache.bins:
+#     for bucket_id in b:
+#         if len(b[bucket_id]) > 1: # if the bucket contains more than a single document
+#             pairs_ = set(itertools.combinations(b[bucket_id], r=2))
+#             candidate_pairs.update(pairs_)
+
+
+candidate_pairs = candidate_duplicates(lhs_table, rhs_table)
