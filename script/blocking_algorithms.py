@@ -74,46 +74,53 @@ def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance,
 
 
 
-def locality_sensitive_hashing_blocking():
-
-    #https://www.youtube.com/watch?v=n3dCcwWV4_k
-    #https://github.com/mattilyra/lsh
-    raise NotImplementedError
-
-
 # Credit: https://github.com/mattilyra/lsh
 def shingles(text, char_ngram=5):
     return set(text[head:head + char_ngram] for head in range(0, len(text) - char_ngram))
 
 
-def jaccard(set_a, set_b):
     intersection = set_a & set_b
     union = set_a | set_b
     return len(intersection) / len(union)
 
 
-def candidate_duplicates(lhs_table, rhs_table, char_ngram=5, seeds=100, bands=5, hashbytes=4):
+def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, char_ngram=5, seeds=100, bands=5, hashbytes=4):
     '''
+    https://www.youtube.com/watch?v=n3dCcwWV4_k
     
     
-    
+
+    Outputs:
+        Returns a Dataframe of Candidate tuples 
     '''
 
     hasher = minhash.MinHasher(seeds=seeds, char_ngram=char_ngram, hashbytes=hashbytes)
     if seeds % bands != 0:
         raise ValueError('Seeds has to be a multiple of bands. {} % {} != 0'.format(seeds, bands))
-    
+
+
+
+    #Print Hashing information
+    for _ in lhs_table.itertuples():
+        print(f"Hashing Column name in LHS table is: {lhs_table.columns[hashing_col_position] }, RHS: {rhs_table.columns[hashing_col_position] }")
+        print(f"Id Column name in LHS table is: {lhs_table.columns[id_position ]}, RHS {rhs_table.columns[id_position]}")
+        break
+
+    # NB! iterating over tuples puts the index in the FIRST position therefore we scale forward the index
+    # as specified by the usual column position by 1
+    hashing_col_position += 1
+    id_position += 1
     lshcache = cache.Cache(num_bands=bands, hasher=hasher)
+
     for x in lhs_table.itertuples():
-        document_string = x[2] # title in this case
-        docid  = x[6]
+        document_string = x[hashing_col_position] 
+        docid  = x[id_position]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
     
     for x in rhs_table.itertuples():
-        document_string = x[2] # title in this case
-        docid  = x[6]
+        document_string = x[hashing_col_position] 
+        docid  = x[id_position]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
-
 
     candidate_pairs = set()
     for b in lshcache.bins:
@@ -122,6 +129,9 @@ def candidate_duplicates(lhs_table, rhs_table, char_ngram=5, seeds=100, bands=5,
                 pairs_ = set(itertools.combinations(b[bucket_id], r=2))
                 candidate_pairs.update(pairs_)
     
+
+
+
     return candidate_pairs
 
 
@@ -191,4 +201,4 @@ second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, ca
 #             candidate_pairs.update(pairs_)
 
 
-candidate_pairs = candidate_duplicates(lhs_table, rhs_table)
+candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5)
