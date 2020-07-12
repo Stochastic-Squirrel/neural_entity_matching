@@ -426,6 +426,9 @@ def partition_data_set(data_set, id_names, feature_cols):
 
 
 def calculate_edit_block_bool(lhs_table, rhs_table, cols, cutoff_distance):
+        '''
+        Calculates edit distance between two tuples and returns True if distance is >= cutoff
+        '''
 
         distance = fuzz.ratio("".join(str(lhs_table[cols[0]])), "".join(str(rhs_table[cols[1]])))
 
@@ -433,3 +436,39 @@ def calculate_edit_block_bool(lhs_table, rhs_table, cols, cutoff_distance):
             return True
         else:
             return False
+
+
+
+def plot_lsh_candidate_prob(piece_size_array, k_minhashes):
+    '''
+    Probability of a tuple of documents being listed as a generated candidate pair 
+    at a Jaccard level distance between them under the given hyper-parameters (different colour of the lines) under each
+    piece_size_array entry
+
+    Inputs:
+        piece_size_array: e.g. [(2, 50), (50, 2), (10, 10), (5, 20), (20, 5)]  =[(number_pieces, size of piece)]
+        k_minhashes = number_of_pieces * size_of_each_piece == number of hash keys generated per document
+    
+    '''
+    
+    from matplotlib import pyplot as plt
+    ix = pd.IndexSlice
+
+    df = pd.DataFrame(data= piece_size_array, columns=['pieces', 'size'])
+    df['hashes'] = df['pieces'] * df['size']
+    # Generate 200 sample_points
+    for pr in np.linspace(0, 1, 200):
+        df[pr] = 1 - (1 - pr**df['size']) ** df['pieces']
+
+    df = pd.pivot_table(df, index=['hashes', 'pieces', 'size'])
+
+    ax = df.T.plot(figsize=(10, 7), title='Probability of LSH finding a candidate pair')
+    plt.ylabel('p(candidate | Jaccad)')
+    plt.xlabel('Jaccard similarity')
+    plt.legend(list(df.loc[ix[k_minhashes]].index),
+            bbox_to_anchor=(1., 1, 1., 0), loc='upper left', fontsize=12, 
+            ncol=1, borderaxespad=0., title='Each line shows the\nfingerprint chopped\ninto (pieces, size)\n')
+
+
+
+plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)

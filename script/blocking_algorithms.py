@@ -1,18 +1,20 @@
-# This script includes all blocking algorithm implementation
-# Falls within the EM framework
-
+''' 
+This script includes all blocking algorithm implementation
+Falls within the EM framework
+ '''
 import os
 import py_entitymatching as em
-
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from utilities import partition_data_set, calculate_edit_block_bool
+from lsh import minhash
+
 
 #https://onestopdataanalysis.com/lsh/
 # https://anhaidgroup.github.io/py_entitymatching/v0.3.2/singlepage.html
 #https://sites.google.com/site/anhaidgroup/projects/magellan/issues
 
 # https://anhaidgroup.github.io/py_entitymatching/v0.3.x/user_manual/blocking.html#types-of-blockers-and-blocker-hierarchy
-
+# https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
 
 def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens, feature_cols, verbose = True, candidates = None):
     '''
@@ -105,16 +107,14 @@ cutoff_distance = 60
 
 # Sequential Blocking
 ## Initial Rough Block
-candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 4, feature_cols)
+candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 2, feature_cols)
 
 ## Take the candidates and block on top of it
-overlapped_attribute_blocking(None,None, blocking_cols, 12, feature_cols, True, candidates)
+overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, True, candidates)
 second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
 
 
 ## NOTE! Union based blocking does also exists 
-
-
 
 
 
