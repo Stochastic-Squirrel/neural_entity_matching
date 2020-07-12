@@ -8,7 +8,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from utilities import partition_data_set, calculate_edit_block_bool
 import itertools
 from lsh import cache, minhash # https://github.com/mattilyra/lsh
-
+import pandas as pd
 
 #https://onestopdataanalysis.com/lsh/
 # https://anhaidgroup.github.io/py_entitymatching/v0.3.2/singlepage.html
@@ -55,8 +55,12 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
 def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance, verbose = True, candidates = None):
     '''
     Computes Levenstein edit distance. If similarity is below cutoff_distance, return blocking == False, otherwise return True
-    
-    Outputs
+    Example how to use the function to block candidate pairs
+        edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
+    To block two tables
+        candidates = edit_distance_blocking(lhs_table, rhs_table, blocking_cols, 60, True, None)
+    Outputs 
+
         Candidate Tuples -- a dataframe of Candidate Tuples across lhs_table to rhs_table
     '''
 
@@ -84,10 +88,10 @@ def shingles(text, char_ngram=5):
     return len(intersection) / len(union)
 
 
-def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, char_ngram=5, seeds=100, bands=5, hashbytes=4):
+def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_names, char_ngram=5, seeds=100, bands=5, hashbytes=4):
     '''
     https://www.youtube.com/watch?v=n3dCcwWV4_k
-    
+    https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
     
 
     Outputs:
@@ -112,15 +116,18 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, char_n
     id_position += 1
     lshcache = cache.Cache(num_bands=bands, hasher=hasher)
 
+    for x in rhs_table.itertuples():
+        document_string = x[hashing_col_position] 
+        docid  = x[id_position]
+        # add finger print for entity to the collection
+        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+
     for x in lhs_table.itertuples():
         document_string = x[hashing_col_position] 
         docid  = x[id_position]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
     
-    for x in rhs_table.itertuples():
-        document_string = x[hashing_col_position] 
-        docid  = x[id_position]
-        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+
 
     candidate_pairs = set()
     for b in lshcache.bins:
@@ -129,10 +136,34 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, char_n
                 pairs_ = set(itertools.combinations(b[bucket_id], r=2))
                 candidate_pairs.update(pairs_)
     
+    # Assign Id_names for generating DataFrame
+    lhs_table = lhs_table.set_index(id_names[0])
+    rhs_table = rhs_table.set_index(id_names[1])
+
+    appropriate_indices = set()
+    for i in candidate_pairs:
+        # Create a hierarchical index 
+        candidate_index = pd.Index([i])
+        # First Try: Assume Correct Alignment
+        if ((candidate_index.get_level_values(0).isin(lhs_table.index)) & (candidate_index.get_level_values(1).isin(rhs_table.index))):
+            appropriate_indices.update({i})
+        elif ((candidate_index.get_level_values(1).isin(lhs_table.index)) & (candidate_index.get_level_values(0).isin(rhs_table.index))): 
+        # Assuming that the LHS index is actually in position one for this candidate pair
+        # If this is the case, you need to swap the candidate_index values to align with lhs_table; rhs_table ordering
+            appropriate_indices.update({(i[1],i[0])})
+        # If a candidate index does NOT pass any of these tests, it means that it represents a WITHIN table possible duplicate
+        # This is not the objective of this code
+
+    # Convert set object to an index for easy pandas manipulation
+    appropriate_indices = pd.Index(appropriate_indices)
+    candidate_pair_df = pd.concat([lhs_table.loc[lhs_table.index.isin(appropriate_indices.get_level_values(0)),:].reset_index(), rhs_table.loc[rhs_table.index.isin(appropriate_indices.get_level_values(1)),:].reset_index()],axis = 1)
+    candidate_pair_df = candidate_pair_df.set_index(keys = id_names)
+    # Remove instances where id_names contain null entries
+    non_null_entries = (~candidate_pair_df.index.get_level_values(0).isnull()) & (~candidate_pair_df.index.get_level_values(1).isnull())
+    candidate_pairs_df = candidate_pair_df.loc[non_null_entries, :]
 
 
-
-    return candidate_pairs
+    return candidate_pair_df
 
 
 
@@ -173,32 +204,19 @@ cutoff_distance = 60
 candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 2, feature_cols)
 
 ## Take the candidates and block on top of it
+# Note the use of None 
 overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, True, candidates)
 second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
 
-
-## NOTE! Union based blocking does also exists 
-
-
 # LSH Hashing
-# https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
+lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_lhs.csv")
+rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.csv")
 
-# # Seeds = number of hash functions = k
-# # bands = number of groups
-# hasher = minhash.MinHasher(seeds=100, char_ngram=5, hashbytes=4)
-# lshcache = cache.Cache(bands=10, hasher=hasher)
-
-# # read in the data file and add the first 100 documents to the LSH cache
-# lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
+candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
 
 
-# # for every bucket in the LSH cache get the candidate duplicates
-# candidate_pairs = set()
-# for b in lshcache.bins:
-#     for bucket_id in b:
-#         if len(b[bucket_id]) > 1: # if the bucket contains more than a single document
-#             pairs_ = set(itertools.combinations(b[bucket_id], r=2))
-#             candidate_pairs.update(pairs_)
 
 
-candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5)
+
+
+

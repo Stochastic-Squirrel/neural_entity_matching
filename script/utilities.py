@@ -471,4 +471,4 @@ def plot_lsh_candidate_prob(piece_size_array, k_minhashes):
 
 
 
-plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)
+#plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)
