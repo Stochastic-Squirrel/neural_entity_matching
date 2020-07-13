@@ -9,7 +9,8 @@ from functools import reduce
 
 '''
 Script contains the abstract EM_Data class which produces training, valid and test sets
-Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included
+Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included.
+Also Includes plotting functions and other helper functions used in other scripts
 '''
 
 class EM_Data:
@@ -469,6 +470,13 @@ def plot_lsh_candidate_prob(piece_size_array, k_minhashes):
             bbox_to_anchor=(1., 1, 1., 0), loc='upper left', fontsize=12, 
             ncol=1, borderaxespad=0., title='Each line shows the\nfingerprint chopped\ninto (pieces, size)\n')
 
+# Credit: https://github.com/mattilyra/lsh
+def shingles(text, char_ngram=5):
+    return set(text[head:head + char_ngram] for head in range(0, len(text) - char_ngram))
 
+
+    intersection = set_a & set_b
+    union = set_a | set_b
+    return len(intersection) / len(union)
 
 #plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)

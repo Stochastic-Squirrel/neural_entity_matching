@@ -39,7 +39,7 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
     if candidates is not None:
         candidate_pairs = overlap.block_candset(candidates,
             blocking_cols[0], blocking_cols[1], 
-            word_level = True, overlap_size = min_shared_tokens, allow_missing=True, 
+            word_level = True, overlap_size = min_shared_tokens, allow_missing=True,
             show_progress = verbose)
     else:
         candidate_pairs = overlap.block_tables(lhs_table, rhs_table,
@@ -47,6 +47,7 @@ def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_share
             word_level = True, overlap_size = min_shared_tokens, allow_missing=True, 
             l_output_attrs = feature_cols[0], 
             r_output_attrs = feature_cols[1],
+            l_output_prefix = "", r_output_prefix = "",
             show_progress = verbose)
 
     return candidate_pairs
@@ -72,22 +73,11 @@ def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance,
     if candidates is not None:
         candidate_pairs =  bb.block_candset(candidates) 
     else:
-        candidate_pairs =  bb.block_tables(lhs_table, rhs_table)
+        candidate_pairs =  bb.block_tables(lhs_table, rhs_tablel_output_prefix = "", r_output_prefix = "")
 
     return candidate_pairs
 
-
-
-# Credit: https://github.com/mattilyra/lsh
-def shingles(text, char_ngram=5):
-    return set(text[head:head + char_ngram] for head in range(0, len(text) - char_ngram))
-
-
-    intersection = set_a & set_b
-    union = set_a | set_b
-    return len(intersection) / len(union)
-
-
+# Credit: https://github.com/mattilyra/lsh for the minhash algorithm
 def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_names, char_ngram=5, seeds=100, bands=5, hashbytes=4):
     '''
     https://www.youtube.com/watch?v=n3dCcwWV4_k
@@ -164,57 +154,6 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
 
     return candidate_pair_df
-
-
-
-
-
-
-
-# Magellan Way
-# TODO: need to wrap this in a function
-# Read in Data into memory
-em.del_catalog()
-lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
-rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_X_train_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
-em.del_catalog()
-em.set_key(lhs_table, "id_lhs")
-em.set_key(rhs_table, "id_rhs")
-
-
-
-blocking_cols = ["title_amzn","title_g"]
-min_shared_tokens = 3
-feature_cols  = [['title_amzn',
-'description_amzn',
-'manufacturer_amzn',
-'price_amzn',
-'id_amzn'],
-['title_g',
-'description_g',
-'manufacturer_g',
-'price_g',
-'id_g']]
-cutoff_distance = 60
-
-
-
-# Sequential Blocking
-## Initial Rough Block
-candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 2, feature_cols)
-
-## Take the candidates and block on top of it
-# Note the use of None 
-overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, True, candidates)
-second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
-
-# LSH Hashing
-lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_lhs.csv")
-rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.csv")
-
-candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
-
-
 
 
 
