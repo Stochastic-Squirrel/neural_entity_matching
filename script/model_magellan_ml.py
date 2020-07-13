@@ -10,7 +10,7 @@ from blocking_algorithms import *
 import re
 
 
-def automatic_feature_gen(candidate_table):
+def automatic_feature_gen(candidate_table, feature_cols, id_names):
     '''
     Takes in a single DataFrame object (lhs_table and rhs_table concatenated) and
     splits it into two tables then generates features on each of the sub tables.
@@ -19,9 +19,15 @@ def automatic_feature_gen(candidate_table):
             candidate_table: single Pandas DataFrame (typically output of blocking_algorithms.py functions)
 
     Outputs:
-
     '''
+    em.del_catalog()
+    candidate_table = candidate_table.reset_index()
+    
+    lhs_table = candidate_table.loc[:, feature_cols[0] + [id_names[0]]]
+    rhs_table = candidate_table.loc[:, feature_cols[1] + [id_names[1]]]
 
+    em.set_key(lhs_table, id_names[0])
+    em.set_key(rhs_table, id_names[1])
 
 
 # Import Data and Block according to a chosen method
@@ -39,21 +45,20 @@ min_shared_tokens = 3
 feature_cols  = [['title_amzn',
 'description_amzn',
 'manufacturer_amzn',
-'price_amzn',
-'id_amzn'],
+'price_amzn'],
 ['title_g',
 'description_g',
 'manufacturer_g',
-'price_g',
-'id_g']]
+'price_g']]
+id_names = ["id_amzn","id_g"]
 cutoff_distance = 60
 # Sequential Blocking
 ## Initial Rough Block
-candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 2, feature_cols)
+candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, 2, feature_cols, id_names)
 
 ## Take the candidates and block on top of it
 # Note the use of None 
-overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, True, candidates)
+overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, id_names, True, candidates)
 second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
 
 # LSH Hashing
@@ -62,9 +67,6 @@ rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.
 
 candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
 
-# NOW try some automatic feature gen
-
-candidate_pairs
 
 
 

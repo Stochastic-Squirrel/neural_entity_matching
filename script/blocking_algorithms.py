@@ -17,22 +17,24 @@ import pandas as pd
 # https://anhaidgroup.github.io/py_entitymatching/v0.3.x/user_manual/blocking.html#types-of-blockers-and-blocker-hierarchy
 # https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
 
-def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens, feature_cols, verbose = True, candidates = None):
+def overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens, feature_cols, id_names, verbose = True, candidates = None):
     '''
     Overlapp Blocking Algorithm
 
     Inputs: 
         blocking_cols: list of length 2 indicating which columns in LHS table and RHS table should be used to measure overlap
                         Columns presented should be in the same order as id_names when generating to data sets
-        feature_cols: list of length 2 indicating which columns to KEEP for further analysis
-    
+        feature_cols: list of length 2 indicating which columns to KEEP for further analysis.
+        id_names: list of length 2 with the names of the ids
     Outputs
         Candidate Tuples -- a dataframe of Candidate Tuples across lhs_table to rhs_table
 
     '''
  
     overlap = em.OverlapBlocker()
-
+    # Add id names ot feature cols
+    feature_cols[0] += [id_names[0]]
+    feature_cols[1] += [id_names[1]]
 
 
     # Decide if you are blocking a pair of TABLES or if you are blocking upon already generated candidate tuples
@@ -150,7 +152,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     candidate_pair_df = candidate_pair_df.set_index(keys = id_names)
     # Remove instances where id_names contain null entries
     non_null_entries = (~candidate_pair_df.index.get_level_values(0).isnull()) & (~candidate_pair_df.index.get_level_values(1).isnull())
-    candidate_pairs_df = candidate_pair_df.loc[non_null_entries, :]
+    candidate_pair_df = candidate_pair_df.loc[non_null_entries, :]
 
 
     return candidate_pair_df
