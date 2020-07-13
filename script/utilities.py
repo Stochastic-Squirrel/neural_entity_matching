@@ -12,7 +12,7 @@ Script contains the abstract EM_Data class which produces training, valid and te
 Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included.
 Also Includes plotting functions and other helper functions used in other scripts
 '''
-
+# TODO: fix price as being a string in google product table 
 class EM_Data:
     # Utility Functions
     def calculate_edit_distance(self, x,cols):
@@ -345,10 +345,10 @@ class Amazon_Google:
 
     def __init__(self, seed, diff_sub_sample, difficult_cutoff, prop_train):
         amz_train = pd.read_csv("../data/amazon_google/Amazon_train.csv")
-        g_train = pd.read_csv("../data/amazon_google/Google_train.csv")
+        g_train = pd.read_csv("../data/amazon_google/Google_train_clean.csv")
 
         amz_test = pd.read_csv("../data/amazon_google/Amazon_test.csv")
-        g_test = pd.read_csv("../data/amazon_google/Google_test.csv")
+        g_test = pd.read_csv("../data/amazon_google/Google_test_clean.csv")
 
 
         matches_train = pd.read_csv("../data/amazon_google/AG_perfect_matching_train.csv")

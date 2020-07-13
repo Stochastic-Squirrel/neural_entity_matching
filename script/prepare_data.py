@@ -3,8 +3,6 @@ Script to create train-valid-test sets for Amzn and Quora data. Partitions sets 
 Blocking is required to generate candidate pairs.
 '''
 
-# TODO: drop duplicates for the training and validation and test sets
-
 from utilities import *
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 amz_g_seed = 420

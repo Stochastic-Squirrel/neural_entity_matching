@@ -10,8 +10,14 @@ from blocking_algorithms import *
 import re
 
 
-def automatic_feature_gen(candidate_table, feature_cols, id_names):
+def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phrase):
     '''
+    NB!
+    The automatic function creates pairwise features. Consequently, it will convert
+    internally the colnames in lhs and rhs portions of feature cols to the SAME name.
+    It does this by trimming the `id_names_phrase` portion (suffix or prefix) from each column name
+    It assumes that the id names are of the form id_{id_names_phrase} e.g. id_amzn
+
     Takes in a single DataFrame object (lhs_table and rhs_table concatenated) and
     splits it into two tables then generates features on each of the sub tables.
 
@@ -23,11 +29,29 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names):
     em.del_catalog()
     candidate_table = candidate_table.reset_index()
     
+    #id_names_phrase = ["_amzn","_g"]
+
     lhs_table = candidate_table.loc[:, feature_cols[0] + [id_names[0]]]
     rhs_table = candidate_table.loc[:, feature_cols[1] + [id_names[1]]]
 
-    em.set_key(lhs_table, id_names[0])
-    em.set_key(rhs_table, id_names[1])
+    lhs_colnames = []
+    for colname in lhs_table:
+        lhs_colnames.append(re.sub(id_names_phrase[0],"",colname))
+    rhs_colnames = []
+    for colname in rhs_table:
+        rhs_colnames.append(re.sub(id_names_phrase[1],"",colname))
+
+    lhs_table.columns = lhs_colnames
+    rhs_table.columns = rhs_colnames
+
+    em.set_key(lhs_table, 'id')
+    em.set_key(rhs_table, 'id')
+    # Generate List Of Features
+    matching_features = em.get_features_for_matching(lhs_table.drop("id", axis = 1), rhs_table.drop("id", axis = 1), validate_inferred_attr_types= False)
+
+    # Extract feature vectors and save as a  DF
+
+    return matching_features_df
 
 
 # Import Data and Block according to a chosen method
@@ -68,5 +92,5 @@ rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.
 candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
 
 
-
+generated_df  =  automatic_feature_gen(candidate_pairs, feature_cols, id_names, ["_amzn","_g"])
 
