@@ -12,13 +12,13 @@ Script contains the abstract EM_Data class which produces training, valid and te
 Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included.
 Also Includes plotting functions and other helper functions used in other scripts
 '''
-# TODO: fix price as being a string in google product table 
+# TODO: add a naive random sample option for EM_data
 class EM_Data:
     # Utility Functions
     def calculate_edit_distance(self, x,cols):
         return fuzz.ratio("".join(str(x[cols[0]])), "".join(str(x[cols[1]])))
-
-    def generate_distance_samples(self, pos_n, neg_n, true_matches, negative_matches, id_names, distance_cols, plot, return_sim, seed):
+    # Internal Method
+    def _generate_distance_samples(self, pos_n, neg_n, true_matches, negative_matches, id_names, distance_cols, plot, return_sim, seed):
         '''
         Inputs:
             pos_n: Sample Size of true positive match pairs to take WITHOUT replacement
@@ -65,7 +65,7 @@ class EM_Data:
             sns.distplot(negative_matches_sample.similarity, color = "red")
         if return_sim:
             return (true_matches_sample.similarity, negative_matches_sample.similarity)
-
+    
     def generate_pos_neg_matches(self, positive_matching_table, table_list, id_names, feature_cols):
         '''
         Inputs:
@@ -108,6 +108,53 @@ class EM_Data:
 
         return (positive_matches, negative_matches_list)
 
+
+    def generate_naive_em_train_valid_split(self, generated_matches, id_names, prop_train, seed):
+        '''
+        Performs a completely random split sample in creating training and validation sets. This is in contrasts to
+        generate_em_train_valid_split() which seeks to ensure an even distribution of challenging examples across sets.
+
+        Inputs:
+                generated_matches: output of generate_pos_neg_matches()
+                prop_train: proportion of data allocated to training DataFrame
+        Outputs:
+                1 = Duplicate/Match; 0 = Non-match
+                (X_train, y_train, X_valid, y_valid, meta_data_dictionary)
+
+        '''
+        
+        negative_example_size = min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0])
+
+        positive_examples = generated_matches[0]
+        negative_examples = generated_matches[1]
+
+        # Construct negative_examples as a Dataframe with size negative_example_size
+        negative_examples = pd.concat([negative_examples[0].sample(n = negative_example_size, random_state = seed).reset_index(), negative_examples[1].sample(n = negative_example_size, random_state = seed).reset_index()], axis = 1)
+        negative_examples = negative_examples.set_index(keys = id_names)
+        # Now we allocate negative and positive examples RANDOMLY to train and validation
+        positive_examples["y"] = 1
+        negative_examples["y"] = 0
+
+        all_examples = pd.concat([positive_examples, negative_examples],axis = 0)
+        #Shuffle
+        all_examples = all_examples.sample(frac = 1)
+
+        total_size = all_examples.shape[0]
+        training_set_size = int(total_size * prop_train)
+
+        ## Compile Train and Validation
+        X_train = all_examples.iloc[0:training_set_size,]
+        X_valid = all_examples.iloc[training_set_size:,]
+
+        ## Create Target Vectors
+        Y_train = X_train["y"]
+        Y_valid = X_valid["y"]
+
+        meta_data = {"seed":seed}
+
+        return X_train.drop(columns = "y"), Y_train, X_valid.drop(columns = "y"), Y_valid, meta_data 
+
+
     def generate_em_train_valid_split(self, generated_matches, id_names, feature_cols, difficult_cutoff, prop_train, diff_sub_sample, seed):
 
         '''
@@ -126,12 +173,11 @@ class EM_Data:
         '''
 
         total_size = generated_matches[0].shape[0] + min(generated_matches[1][0].shape[0],generated_matches[1][1].shape[0]) 
-        train_size = round(total_size * prop_train,0)
 
 
         # TODO: repeat this 5 times and take average
         # First, generate a cutoff rule in terms of similarity measure units according to difficult_cutoff
-        pos_sim, neg_sim = self.generate_distance_samples(diff_sub_sample, diff_sub_sample, generated_matches[0], generated_matches[1], id_names, feature_cols, False, True, seed)
+        pos_sim, neg_sim = self._generate_distance_samples(diff_sub_sample, diff_sub_sample, generated_matches[0], generated_matches[1], id_names, feature_cols, False, True, seed)
         # Lowest similarity is more difficult for positive matches and higher similarity
         # is more difficult for negative matches
         pos_sim_cutoff = np.quantile(pos_sim, difficult_cutoff)
@@ -158,7 +204,8 @@ class EM_Data:
         sample_pos = True
         sample_neg = True
         iteration = 1
-        while (sample_pos | sample_neg) & (iteration < 50):
+        # Iterative Sampling
+        while (sample_pos | sample_neg) & (iteration < 150):
 
             # Calculate Minimum Available sample size
             min_sample_pos = positive_matches.shape[0]
@@ -186,7 +233,7 @@ class EM_Data:
             # print(f"Iteration {iteration} with pos_n:{pos_n} and neg_n {neg_n}")
 
             # Calculate Edit Distance for a random sample of positive and negative matches
-            pos_indices, neg_indices = self.generate_distance_samples(pos_n, neg_n, positive_matches, negative_matches, id_names, feature_cols, False, True, seed)
+            pos_indices, neg_indices = self._generate_distance_samples(pos_n, neg_n, positive_matches, negative_matches, id_names, feature_cols, False, True, seed)
             
             if(sample_pos):
             # Add indices to to *_difficult_indices if they are beyond cutoff rules
@@ -333,6 +380,9 @@ class EM_Data:
                                                                 prop_train, \
                                                                 diff_sub_sample, \
                                                                 seed)
+        self.naive_train_valid_sets = self.generate_naive_em_train_valid_split(self.generated_matches_train_valid,\
+                                                                id_names,\
+                                                                prop_train, seed)
 
         self.test_sets = self.generate_em_test_set(self.generated_matches_test,\
                                                                 id_names, \
@@ -341,6 +391,11 @@ class EM_Data:
         self.id_names = id_names
         self.feature_cols = feature_cols
         self.distance_cols = distance_cols
+
+    # External Method
+    def generate_distance_samples(self, pos_n, neg_n, plot, return_sim, seed):
+        self._generate_distance_samples(pos_n, neg_n, self.generated_matches_train_valid[0], self.generated_matches_train_valid[1], self.id_names, self.distance_cols, plot, return_sim, seed)
+        
 class Amazon_Google:
 
     def __init__(self, seed, diff_sub_sample, difficult_cutoff, prop_train):
@@ -480,3 +535,12 @@ def shingles(text, char_ngram=5):
     return len(intersection) / len(union)
 
 #plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)
+
+# generated_matches  = 
+# id_names = ["id_amzn","id_g"]
+# feature_cols = ['title_amzn', 'description_amzn',
+#        'manufacturer_amzn', 'price_amzn', 'title_g', 'description_g', 'manufacturer_g',
+#        'price_g']
+#  prop_train = 0.8
+#  seed = 80085
+

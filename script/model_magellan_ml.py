@@ -120,5 +120,18 @@ feature_cols  = [['title_amzn',
 'manufacturer_g',
 'price_g']]
 
+
+# generate regression features based off a blocking set
 generated_df  =  automatic_feature_gen(candidate_pairs, feature_cols, id_names, ["_amzn","_g"])
 
+# https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
+
+
+# TODO: set up a modelling pipeline
+
+# Select the best ML matcher using CV
+result = em.select_matcher([dt, rf, svm, ln, lg], table=H, 
+        exclude_attrs=['_id', 'ltable_id', 'rtable_id', 'label'],
+        k=5,
+        target_attr='label', metric_to_select_matcher='f1', random_state=0)
+result['cv_stats']
