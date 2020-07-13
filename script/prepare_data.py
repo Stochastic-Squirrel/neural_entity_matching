@@ -8,8 +8,9 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 amz_g_seed = 420
 quora_seed = 80085
 
-amz_goog = Amazon_Google(seed = amz_g_seed, diff_sub_sample = 150, difficult_cutoff = 0.15, prop_train = 0.8)
-quora = Quora(seed = quora_seed, diff_sub_sample = 10000, difficult_cutoff = 0.1, prop_train = 0.8)
+amz_goog = Amazon_Google(seed = amz_g_seed, diff_sub_sample = 150, difficult_cutoff = 0.2, prop_train = 0.8)
+quora = Quora(seed = quora_seed, diff_sub_sample = 10000, difficult_cutoff = 0.2, prop_train = 0.8)
+
 
 
 # Save To Disk
@@ -66,3 +67,6 @@ for i, dataset in enumerate([amz_goog, quora]):
 
 
 
+amz_goog.data.generate_distance_samples(100,100,True,False, 69)
+
+quora.data.generate_distance_samples(2000,2000,True,False, 69)

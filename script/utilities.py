@@ -394,6 +394,9 @@ class EM_Data:
 
     # External Method
     def generate_distance_samples(self, pos_n, neg_n, plot, return_sim, seed):
+        '''
+        Take a sample of the TRAINING set rows and calculate distributions of edit distances for positive(blue) and negative(red) matches.
+        '''
         self._generate_distance_samples(pos_n, neg_n, self.generated_matches_train_valid[0], self.generated_matches_train_valid[1], self.id_names, self.distance_cols, plot, return_sim, seed)
         
 class Amazon_Google:
