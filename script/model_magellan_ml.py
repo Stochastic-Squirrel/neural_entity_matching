@@ -8,6 +8,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 from blocking_algorithms import *
 import re
+import numpy as np
 
 
 def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phrase):
@@ -36,20 +37,37 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
 
     lhs_colnames = []
     for colname in lhs_table:
-        lhs_colnames.append(re.sub(id_names_phrase[0],"",colname))
+        if colname != id_names[0]:
+            lhs_colnames.append(re.sub(id_names_phrase[0],"",colname))
+        else:
+            lhs_colnames.append(colname)
     rhs_colnames = []
     for colname in rhs_table:
-        rhs_colnames.append(re.sub(id_names_phrase[1],"",colname))
+        if colname != id_names[1]:
+            rhs_colnames.append(re.sub(id_names_phrase[1],"",colname))
+        else:
+            rhs_colnames.append(colname)
 
     lhs_table.columns = lhs_colnames
     rhs_table.columns = rhs_colnames
 
-    em.set_key(lhs_table, 'id')
-    em.set_key(rhs_table, 'id')
+    em.set_key(lhs_table, id_names[0])
+    em.set_key(rhs_table, id_names[1])
     # Generate List Of Features
-    matching_features = em.get_features_for_matching(lhs_table.drop("id", axis = 1), rhs_table.drop("id", axis = 1), validate_inferred_attr_types= False)
-
+    matching_features = em.get_features_for_matching(lhs_table.drop(id_names[0], axis = 1), rhs_table.drop(id_names[1], axis = 1), validate_inferred_attr_types= False)
     # Extract feature vectors and save as a  DF
+    # Set primary keys and foreign keys for candidate table
+    candidate_table["index"] = np.arange(candidate_table.shape[0])
+
+    em.set_key(candidate_table, "index")
+    em.set_fk_ltable(candidate_table, id_names[0])
+    em.set_fk_rtable(candidate_table, id_names[1])
+    em.set_ltable(candidate_table, lhs_table)
+    em.set_rtable(candidate_table, rhs_table)
+
+    matching_features_df = em.extract_feature_vecs(candidate_table, 
+                            feature_table = matching_features, 
+                            show_progress = False)
 
     return matching_features_df
 
@@ -91,6 +109,16 @@ rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.
 
 candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
 
+
+id_names_phrase = ["_amzn","_g"]
+feature_cols  = [['title_amzn',
+'description_amzn',
+'manufacturer_amzn',
+'price_amzn'],
+['title_g',
+'description_g',
+'manufacturer_g',
+'price_g']]
 
 generated_df  =  automatic_feature_gen(candidate_pairs, feature_cols, id_names, ["_amzn","_g"])
 
