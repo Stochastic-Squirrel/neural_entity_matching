@@ -4,6 +4,7 @@ of algorithms.
 '''
 import os
 import py_entitymatching as em
+from py_entitymatching import XGBoostMatcher
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 from blocking_algorithms import *
@@ -147,9 +148,10 @@ svm = em.SVMMatcher(name='SVM', random_state=0)
 rf = em.RFMatcher(name='RF', random_state=0)
 lg = em.LogRegMatcher(name='LogReg', random_state=0)
 ln = em.LinRegMatcher(name='LinReg')
+xg = em.XGBoostMatcher(name = "Xg-Boost")
 
 # Select the best ML matcher using CV
-result = em.select_matcher([dt, rf, svm, ln, lg], table= generated_df, 
+result = em.select_matcher([dt, rf, svm, ln, lg, xg], table= generated_df, 
         exclude_attrs=['index', 'id_amzn','id_g'],
         k=5,
         target_attr='y', metric_to_select_matcher='f1', random_state=0)
