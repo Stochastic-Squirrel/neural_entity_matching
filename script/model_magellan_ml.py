@@ -69,6 +69,11 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
                             feature_table = matching_features, 
                             show_progress = False)
 
+    matching_features_df = em.impute_table(matching_features_df, 
+                exclude_attrs=['index', 'id_amzn','id_g'],
+                strategy='mean')
+
+
     return matching_features_df
 
 
@@ -77,8 +82,8 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
 # TODO: need to wrap this in a function
 # Read in Data into memory
 em.del_catalog()
-lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
-rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_X_train_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
+lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_iterative_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
+rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_iterative_X_train_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
 em.del_catalog()
 em.set_key(lhs_table, "id_lhs")
 em.set_key(rhs_table, "id_rhs")
@@ -86,7 +91,7 @@ blocking_cols = ["title_amzn","title_g"]
 min_shared_tokens = 3
 feature_cols  = [['title_amzn',
 'description_amzn',
-'manufacturer_amzn',
+'manufacturer_amzn', 
 'price_amzn'],
 ['title_g',
 'description_g',
@@ -104,34 +109,49 @@ overlapped_attribute_blocking(None, None, blocking_cols, 12, feature_cols, id_na
 second_blocking = edit_distance_blocking(None, None, blocking_cols, 60, True, candidates)
 
 # LSH Hashing
-lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_lhs.csv")
-rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_X_train_rhs.csv")
-
-candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"])
+lhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_iterative_X_train_lhs.csv")
+rhs_table = pd.read_csv("../data/processed_amazon_google/amz_google_iterative_X_train_rhs.csv")
+y_train = pd.read_csv("../data/processed_amazon_google/amz_google_iterative_y_train.csv")
+candidate_pairs = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = 2, seeds = 200, bands = 4)
 
 
 id_names_phrase = ["_amzn","_g"]
 feature_cols  = [['title_amzn',
-'description_amzn',
-'manufacturer_amzn',
+'description_amzn', # removed manufacturer due to missingess: produces features with nans
 'price_amzn'],
 ['title_g',
 'description_g',
-'manufacturer_g',
 'price_g']]
 
 
 # generate regression features based off a blocking set
 generated_df  =  automatic_feature_gen(candidate_pairs, feature_cols, id_names, ["_amzn","_g"])
+# join up with generated DF
+
+generated_df = pd.merge(generated_df, y_train, left_on  = ["id_amzn","id_g"] , right_on = ["id_amzn","id_g"], how  = "left")
+generated_df.y = generated_df.y.map({1.0:int(1), np.nan: 0})
+# TODO: need to deal with NAN entries
+# LOTS OF NANAS BECAUSE OF BLANK ENTRIES FOR MANUFACTURERES
+# Removed problematic manufacturer column for generating values
+
+
+
 
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
 
 # TODO: set up a modelling pipeline
 
+dt = em.DTMatcher(name='DecisionTree', random_state=0)
+svm = em.SVMMatcher(name='SVM', random_state=0)
+rf = em.RFMatcher(name='RF', random_state=0)
+lg = em.LogRegMatcher(name='LogReg', random_state=0)
+ln = em.LinRegMatcher(name='LinReg')
+
 # Select the best ML matcher using CV
-result = em.select_matcher([dt, rf, svm, ln, lg], table=H, 
-        exclude_attrs=['_id', 'ltable_id', 'rtable_id', 'label'],
+result = em.select_matcher([dt, rf, svm, ln, lg], table= generated_df, 
+        exclude_attrs=['index', 'id_amzn','id_g'],
         k=5,
-        target_attr='label', metric_to_select_matcher='f1', random_state=0)
+        target_attr='y', metric_to_select_matcher='f1', random_state=0)
 result['cv_stats']
+result.keys()
