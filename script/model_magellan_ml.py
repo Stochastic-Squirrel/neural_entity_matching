@@ -12,6 +12,9 @@ import re
 import numpy as np
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
+
+
+
 def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phrase):
     '''
     NB!
@@ -33,8 +36,6 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
 
     em.del_catalog()
     candidate_table = candidate_table.reset_index()
-    
-    candidate_table.price = 
 
     lhs_table = candidate_table.loc[:, feature_cols[0] + [id_names[0]]]
     rhs_table = candidate_table.loc[:, feature_cols[1] + [id_names[1]]]
@@ -86,9 +87,12 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
     matching_features_df["id_amzn"] = candidate_table.id_amzn
     matching_features_df["id_g"] = candidate_table.id_g
 
+    matching_features_df = matching_features_df.fillna(value = 0)
+    
     # Check if any NaNs are left
-    if any(matching_features_df.isnull()):
-        raise ValueError("NaNs present in generated feature DF after imputation.")
+    # if any(matching_features_df.isna()):
+    #     print(matching_features_df.isna().apply(sum))
+    #     raise ValueError("NaNs present in generated feature DF after imputation.")
 
     return matching_features_df
 
@@ -274,13 +278,21 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
 
 #TODO: debug naive:lsh combination
 # TODO return hyper-parameters for blocking
-# TODO: fix nan issue training and forces validation predict to use a oclumn that has nans 
+# TODO: fix nan issue training and forces validation predict to use a oclumn that has nan 
 
 all_results = pd.DataFrame({"sampler":[], "block_algo":[],"result_obj":[]})
+
+sampler_list = []
+blocking_algo_list = []
+result_obj_list = []
+
 for sampler in ["iterative","naive"]:
     for block_algo in ["sequential","lsh"]:
         print("--------------------------------------------------")
         print(f"Running on configuration {sampler}:{block_algo}")
         print("--------------------------------------------------")
-        all_results = all_results.append(pd.Series([sampler, block_algo,run_magellan_models(sampler,block_algo)], index=all_results.columns), ignore_index = True) 
+        sampler_list = sampler_list.append(sampler)
+        blocking_algo_list = blocking_algo_list.append(blocking_algo)
+        result_obj_list = result_obj_list.append(run_magellan_models(sampler,block_algo))
+
 
