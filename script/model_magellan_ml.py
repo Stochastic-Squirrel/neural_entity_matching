@@ -10,6 +10,7 @@ import pandas as pd
 from blocking_algorithms import *
 import re
 import numpy as np
+from progressbar import progressbar
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
 
@@ -89,18 +90,16 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
 
     matching_features_df = matching_features_df.fillna(value = 0)
     
-    # Check if any NaNs are left
-    # if any(matching_features_df.isna()):
-    #     print(matching_features_df.isna().apply(sum))
-    #     raise ValueError("NaNs present in generated feature DF after imputation.")
-
+    # print(matching_features_df.describe())
+    # print(f"Number na {matching_features_df.isna().apply(sum)}")
+    # print(f"Number null {matching_features_df.isnull().apply(sum)}")
     return matching_features_df
 
 
 
 
 
-def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs):
+def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None, sequential_args = None):
 
 
     '''
@@ -112,6 +111,8 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     Inputs:
             sampler: sampling technique that was used to generate data: iterative or naive
             blocking: blocking algorithm used: iterative or lsh
+            lsh_args = dictionary: seeds, char_ngrams, bands --> dictionary
+            sequential_args: cutoff_distance , min_shared_tokens
     Outputs:
             training_pred_dict, validation_pred_dict, test_pred_dict, pre_blocked_all_sets_labels, post_blocked_all_sets_labels
     
@@ -130,7 +131,7 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
 
     # Blocking
     blocking_cols = ["title_amzn","title_g"]
-    min_shared_tokens = 3
+    #min_shared_tokens = 3
     feature_cols  = [['title_amzn',
     'description_amzn',
     'manufacturer_amzn', 
@@ -140,15 +141,15 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     'manufacturer_g',
     'price_g']]
     id_names = ["id_amzn","id_g"]
-    cutoff_distance = 60
+    #cutoff_distance = 60
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = 2, seeds = 200, bands = 4)
+        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
-        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens , feature_cols, id_names)
+        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
         # Fine Grained Blocking on edit distance
-        candidates = edit_distance_blocking(None, None, blocking_cols, cutoff_distance, True, candidates)
+        candidates = edit_distance_blocking(None, None, blocking_cols, sequential_args["cutoff_distance"] , True, candidates)
     else:
         raise ValueError("Blocking must be lsh or sequential")
     
@@ -214,12 +215,12 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     em.set_key(rhs_table, "id_rhs")
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = 2, seeds = 200, bands = 4)
+        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
-        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens , feature_cols, id_names)
+        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
         # Fine Grained Blocking on edit distance
-        candidates = edit_distance_blocking(None, None, blocking_cols, cutoff_distance, True, candidates)
+        candidates = edit_distance_blocking(None, None, blocking_cols, sequential_args["cutoff_distance"] , True, candidates)
     else:
         raise ValueError("Blocking must be lsh or sequential")
     
@@ -227,11 +228,37 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     generated_df_valid = pd.merge(generated_df_valid, y_valid, left_on  = ["id_amzn","id_g"] , right_on = ["id_amzn","id_g"], how  = "left")
     generated_df_valid.y = generated_df_valid.y.map({1.0:int(1), np.nan: 0})
     generated_df_valid = generated_df_valid.loc[:,model_features]
+    ## TODO: think of a better idea!! it is because we enforce all generated data sets to have same columns as training set
+    generated_df_valid = generated_df_valid.fillna(0)
     # Predict on Validation Set
     validation_predictions = {}
     for model in models:
         validation_predictions[model.name] = model.predict(table = generated_df_valid, 
             exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+
+    # Retrain on all data
+    generated_final_train = pd.concat([generated_df_train,generated_df_valid], axis = 0)
+    
+    dt.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+    svm.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+    rf.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+    lg.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+    ln.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+    xg.fit(table = generated_final_train, 
+            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+            target_attr='y')
+
+
 
 
     # Finally Generate Test Set Predictions
@@ -244,12 +271,12 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     em.set_key(rhs_table, "id_rhs")
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = 2, seeds = 200, bands = 4)
+        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
-        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, min_shared_tokens , feature_cols, id_names)
+        candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
         # Fine Grained Blocking on edit distance
-        candidates = edit_distance_blocking(None, None, blocking_cols, cutoff_distance, True, candidates)
+        candidates = edit_distance_blocking(None, None, blocking_cols, sequential_args["cutoff_distance"] , True, candidates)
     else:
         raise ValueError("Blocking must be lsh or sequential")
     
@@ -257,9 +284,13 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
     generated_df_test = pd.merge(generated_df_test, y_test, left_on  = ["id_amzn","id_g"] , right_on = ["id_amzn","id_g"], how  = "left")
     generated_df_test.y = generated_df_test.y.map({1.0:int(1), np.nan: 0})
     generated_df_test = generated_df_test.loc[:,model_features]
+    generated_df_test = generated_df_test.fillna(0)
+
+
     # Predict on test Set
     test_predictions = {}
     for model in models:
+        print(model.name)
         test_predictions[model.name] = model.predict(table = generated_df_test, 
             exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
 
@@ -271,28 +302,42 @@ def run_magellan_models(sampler = "iterative", blocking = "sequential", **kwargs
                                     "test":generated_df_test[["id_amzn","id_g","y"]]}
 
 
-
-
-    return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels)
-
-
-#TODO: debug naive:lsh combination
-# TODO return hyper-parameters for blocking
-# TODO: fix nan issue training and forces validation predict to use a oclumn that has nan 
-
-all_results = pd.DataFrame({"sampler":[], "block_algo":[],"result_obj":[]})
+    if(blocking == "lsh"):
+        metadata  = lsh_args
+    else:
+        metadata = sequential_args
+    print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata}")
+    return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels, metadata)
 
 sampler_list = []
 blocking_algo_list = []
 result_obj_list = []
 
-for sampler in ["iterative","naive"]:
-    for block_algo in ["sequential","lsh"]:
-        print("--------------------------------------------------")
-        print(f"Running on configuration {sampler}:{block_algo}")
-        print("--------------------------------------------------")
-        sampler_list = sampler_list.append(sampler)
-        blocking_algo_list = blocking_algo_list.append(blocking_algo)
-        result_obj_list = result_obj_list.append(run_magellan_models(sampler,block_algo))
 
+lsh_args = [{"seeds":200, "char_ngram":2, "bands": 4},
+            {"seeds":200, "char_ngram":2, "bands": 10},
+            {"seeds":200, "char_ngram":2, "bands": 2}
+]
+sequential_args = [{"cutoff_distance":60, "min_shared_tokens":4},
+    {"cutoff_distance":40, "min_shared_tokens":4},
+    {"cutoff_distance":80, "min_shared_tokens":4}
+]
 
+total_num_experiments = 2*(len(lsh_args)) + 2*len(sequential_args)
+
+for _ in progressbar(range(total_num_experiments)):
+    for sampler in ["iterative","naive"]:
+        for block_algo in ["sequential","lsh"]:
+            print("--------------------------------------------------")
+            print(f"Running on configuration {sampler}:{block_algo}")
+            print("--------------------------------------------------")
+            sampler_list.append(sampler)
+            blocking_algo_list.append(block_algo)
+            if (block_algo == "sequential"):
+                for arg_dic in sequential_args:
+                    result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
+            else:
+                for arg_dic in lsh_args:
+                    result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+
+all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
