@@ -11,6 +11,8 @@ from blocking_algorithms import *
 import re
 import numpy as np
 from progressbar import progressbar
+import pickle
+import datetime
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
 
@@ -331,13 +333,20 @@ for _ in progressbar(range(total_num_experiments)):
             print("--------------------------------------------------")
             print(f"Running on configuration {sampler}:{block_algo}")
             print("--------------------------------------------------")
-            sampler_list.append(sampler)
-            blocking_algo_list.append(block_algo)
             if (block_algo == "sequential"):
                 for arg_dic in sequential_args:
+                    sampler_list.append(sampler)
+                    blocking_algo_list.append(block_algo)
                     result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
             else:
                 for arg_dic in lsh_args:
+                    sampler_list.append(sampler)
+                    blocking_algo_list.append(block_algo)
                     result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
+
+pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ) )
+
+
+#xx = pickle.load(open("../results/magellan_Jul_15_1837.p","rb"))
