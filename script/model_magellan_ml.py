@@ -131,6 +131,8 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     em.set_key(lhs_table, "id_lhs")
     em.set_key(rhs_table, "id_rhs")
 
+    n_train  = lhs_table.shape[0]
+
     # Blocking
     blocking_cols = ["title_amzn","title_g"]
     #min_shared_tokens = 3
@@ -216,6 +218,8 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     em.set_key(lhs_table, "id_lhs")
     em.set_key(rhs_table, "id_rhs")
 
+    n_valid  = lhs_table.shape[0]
+
     if (blocking == "lsh"):
         candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
@@ -272,6 +276,8 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     em.set_key(lhs_table, "id_lhs")
     em.set_key(rhs_table, "id_rhs")
 
+    n_test  = lhs_table.shape[0]
+
     if (blocking == "lsh"):
         candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
@@ -288,7 +294,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     generated_df_test = generated_df_test.loc[:,model_features]
     generated_df_test = generated_df_test.fillna(0)
 
-
+    
     # Predict on test Set
     test_predictions = {}
     for model in models:
@@ -309,6 +315,11 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     else:
         metadata = sequential_args
     print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata}")
+    # Add in sample sizes
+    metadata["n_train"] = n_train
+    metadata["n_valid"] = n_valid
+    metadata["n_test"] = n_test
+
     return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels, metadata)
 
 sampler_list = []
