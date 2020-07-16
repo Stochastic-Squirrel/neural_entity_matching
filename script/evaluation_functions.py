@@ -25,7 +25,7 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import precision_score, recall_score, f1_score
-
+import itertools
 
 
 def evaluate_blocking(result):
@@ -110,8 +110,6 @@ def evaluate_blocking(result):
                         "test_recall":test_recall,
                         "metadata":metadata})
 
-
-
 def evaluate_matcher(result):
     '''
     Given the post-blocked data sets, evaluate against the train, valid and test truth labels per matching algo
@@ -121,6 +119,15 @@ def evaluate_matcher(result):
         - Recall of Matcher
         - F1 Score
     '''
+
+
+ 
+    sampler_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["sampler"]))
+    blocking_algo_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["blocking_algo"]))
+   
+
+
+
 
     precision_list_train = []
     recall_list_train = []
@@ -134,6 +141,8 @@ def evaluate_matcher(result):
     recall_list_test = []
     f1_score_list_test = []
 
+    metadata_list = []
+
     model_list = []
     # Cycle through experiments
     for i, obj in enumerate(result["result_obj"]):
@@ -142,12 +151,13 @@ def evaluate_matcher(result):
         valid_labels = obj[4]["valid"]
         test_labels = obj[4]["test"]
 
-        # Save metadata appropriate across all models in the experiment
-
 
         # For Each Model
-        for model in obj[0]:
+        for model in obj[0]: #arbitrarily choose index 0 to extract model name
             model_list.append(model)
+
+            metadata_list.append(obj[5])
+
             train_predictions = obj[0][model]
             valid_predictions = obj[1][model]
             test_predictions = obj[2][model]
@@ -167,8 +177,9 @@ def evaluate_matcher(result):
             f1_score_list_test.append(f1_score(test_labels.y.values,test_predictions))
 
 
-    return pd.DataFrame({"sampler":result["sampler"],
-                    "blocking_algo":result["blocking_algo"],
+
+    return pd.DataFrame({"sampler":sampler_list,
+                    "blocking_algo":blocking_algo_list,
                     "model":model_list,
                     "train_precision":precision_list_train,
                     "train_recall":recall_list_train,
@@ -179,7 +190,7 @@ def evaluate_matcher(result):
                     "test_precision":precision_list_test,
                     "test_recall":recall_list_test,
                     "test_f1":f1_score_list_test,
-                    "metadata":metadata})
+                    "metadata":metadata_list})
 
 
 
@@ -198,6 +209,10 @@ def evaluate_matcher(result):
 result = pickle.load(open("../results/magellan_Jul_16_1341.p","rb"))
 
 blocking_results = evaluate_blocking(result)
+matcher_results = evaluate_matcher(result)
+
+
+assert blocking_results.shape[0]*6 == matcher_results.shape[0] 
 
 sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall)
 
@@ -211,3 +226,5 @@ sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_re
 
 
 blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
+
+matcher_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
