@@ -24,6 +24,7 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 
 
@@ -114,14 +115,85 @@ def evaluate_blocking(result):
 def evaluate_matcher(result):
     '''
     Given the post-blocked data sets, evaluate against the train, valid and test truth labels per matching algo
-
+    Each row represents a Sampler-BlockingAlgo - Matcher combination
     Evaluates
         - Precision of Matcher
         - Recall of Matcher
         - F1 Score
     '''
 
-    raise NotImplementedError
+    precision_list_train = []
+    recall_list_train = []
+    f1_score_list_train = []
+
+    precision_list_valid = []
+    recall_list_valid = []
+    f1_score_list_valid = []
+
+    precision_list_test = []
+    recall_list_test = []
+    f1_score_list_test = []
+
+    model_list = []
+    # Cycle through experiments
+    for i, obj in enumerate(result["result_obj"]):
+        # Fetch Sources of Truth for this experiment which is POST BLOCKED DATA
+        train_labels = obj[4]["train"]
+        valid_labels = obj[4]["valid"]
+        test_labels = obj[4]["test"]
+
+        # Save metadata appropriate across all models in the experiment
+
+
+        # For Each Model
+        for model in obj[0]:
+            model_list.append(model)
+            train_predictions = obj[0][model]
+            valid_predictions = obj[1][model]
+            test_predictions = obj[2][model]
+
+            # Calculate and Store Metrics
+            ## y_true, y_pred
+            precision_list_train.append(precision_score(train_labels.y.values,train_predictions))
+            recall_list_train.append(recall_score(train_labels.y.values,train_predictions))
+            f1_score_list_train.append(f1_score(train_labels.y.values,train_predictions))
+
+            precision_list_valid.append(precision_score(valid_labels.y.values,valid_predictions))
+            recall_list_valid.append(recall_score(valid_labels.y.values,valid_predictions))
+            f1_score_list_valid.append(f1_score(valid_labels.y.values,valid_predictions))
+
+            precision_list_test.append(precision_score(test_labels.y.values,test_predictions))
+            recall_list_test.append(recall_score(test_labels.y.values,test_predictions))
+            f1_score_list_test.append(f1_score(test_labels.y.values,test_predictions))
+
+
+    return pd.DataFrame({"sampler":result["sampler"],
+                    "blocking_algo":result["blocking_algo"],
+                    "model":model_list,
+                    "train_precision":precision_list_train,
+                    "train_recall":recall_list_train,
+                    "train_f1":f1_score_list_train,
+                    "valid_precision":precision_list_valid,
+                    "valid_recall":recall_list_valid,
+                    "valid_f1":f1_score_list_valid,
+                    "test_precision":precision_list_test,
+                    "test_recall":recall_list_test,
+                    "test_f1":f1_score_list_test,
+                    "metadata":metadata})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 result = pickle.load(open("../results/magellan_Jul_16_1341.p","rb"))
 
@@ -136,3 +208,6 @@ sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_re
 #  'n_train': 915,
 #  'n_valid': 245,
 #  'n_test': 250}
+
+
+blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
