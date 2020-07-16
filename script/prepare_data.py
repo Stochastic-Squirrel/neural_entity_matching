@@ -1,6 +1,9 @@
 '''
 Script to create train-valid-test sets for Amzn and Quora data. Partitions sets into two different tables.
 Blocking is required to generate candidate pairs.
+
+
+NOTE! only the positive examples are saved for the target variables
 '''
 
 from utilities import *
