@@ -352,11 +352,13 @@ for sampler in ["iterative","naive"]:
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
+
 pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ) )
 
 
 xx = pickle.load(open("../results/magellan_Jul_15_1900.p","rb"))
 
-exp = 14
+exp = 5
 set_id = 1
 sum(xx["result_obj"][exp][set_id]["Xg-Boost"] == xx["result_obj"][exp][4]["valid"].y.get_values())/len(xx["result_obj"][exp][set_id]["Xg-Boost"])
+
