@@ -22,6 +22,8 @@ file_directories = ["../data/processed_amazon_google/", "../data/processed_quora
 data_set_names = ["amz_google","quora"]
 
 
+
+
 technique = "iterative"
 for i, dataset in enumerate([amz_goog, quora]):
     current_filepath = file_directories[i] + data_set_names[i] + "_" + technique

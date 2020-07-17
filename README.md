@@ -8,3 +8,9 @@ To install deepmatcher, clone from the GitHub repo directly:
 `pip install .`
 
 You also need to install XgBoost separately and pandastable if you wish to use that functionality of py_entitymatching
+
+# Running Scripts
+
+* prepare_data.py 
+* magellan_model.py
+* deepmatcher_model.py 
