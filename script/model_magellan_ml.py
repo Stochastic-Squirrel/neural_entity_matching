@@ -364,6 +364,9 @@ for sampler in ["iterative","naive"]:
         print("--------------------------------------------------")
         if (block_algo == "sequential"):
             for arg_dic in sequential_args:
+                # If entire set of blocked candidates consists of one label only 1 = positive match or 0 = no match, matcher will fail
+                # This is why the try block is here.
+                # TODO: what about cases where blocker is so good we don't need a matcher?
                 try:
                     result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
                     sampler_list.append(sampler)
