@@ -343,20 +343,16 @@ blocking_algo_list = []
 result_obj_list = []
 
 
-lsh_args = [{"seeds":200, "char_ngram":2, "bands": 4},
-            {"seeds":200, "char_ngram":2, "bands": 10},
-            {"seeds":200, "char_ngram":2, "bands": 2},
-            {"seeds":200, "char_ngram":3, "bands": 4},
-            {"seeds":200, "char_ngram":3, "bands": 10},
-            {"seeds":200, "char_ngram":3, "bands": 2}
-]
-sequential_args = [{"cutoff_distance":60, "min_shared_tokens":4},
-    {"cutoff_distance":40, "min_shared_tokens":4},
-    {"cutoff_distance":80, "min_shared_tokens":4},
-    {"cutoff_distance":60, "min_shared_tokens":2},
-    {"cutoff_distance":40, "min_shared_tokens":2},
-    {"cutoff_distance":80, "min_shared_tokens":2}
-]
+def expand_grid(data_dict):
+    # Produces dictionary objects across exploration space
+    rows = itertools.product(*data_dict.values())
+    return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
+
+lsh_exploration_space = {"seeds":[200], "char_ngram":[2,3], "bands":[10,25,50]}
+sequential_exploration_space = {"cutoff_distance":[50,60,70], "min_shared_tokens":[1,2,3]}
+
+lsh_args = expand_grid(lsh_exploration_space)
+sequential_args = expand_grid(sequential_exploration_space)
 
 total_num_experiments = 2*(len(lsh_args)) + 2*len(sequential_args)
 
@@ -368,24 +364,21 @@ for sampler in ["iterative","naive"]:
         print("--------------------------------------------------")
         if (block_algo == "sequential"):
             for arg_dic in sequential_args:
-                sampler_list.append(sampler)
-                blocking_algo_list.append(block_algo)
-                result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
+                try:
+                    result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
+                    sampler_list.append(sampler)
+                    blocking_algo_list.append(block_algo)
+                except:
+                    continue 
         else:
             for arg_dic in lsh_args:
-                sampler_list.append(sampler)
-                blocking_algo_list.append(block_algo)
-                result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                try:
+                    result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                    sampler_list.append(sampler)
+                    blocking_algo_list.append(block_algo)
+                except:
+                    continue
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
-
-pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ) )
-
-
-# xx = pickle.load(open("../results/magellan_Jul_15_1900.p","rb"))
-
-# exp = 5
-# set_id = 1
-# sum(xx["result_obj"][exp][set_id]["Xg-Boost"] == xx["result_obj"][exp][4]["valid"].y.get_values())/len(xx["result_obj"][exp][set_id]["Xg-Boost"])
-
+pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))

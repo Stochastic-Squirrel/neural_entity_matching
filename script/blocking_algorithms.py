@@ -85,6 +85,8 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     https://www.youtube.com/watch?v=n3dCcwWV4_k
     https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
     
+    Bands = Number of Pieces or Bins
+    The size of each bin is inferred
 
     Outputs:
         Returns a Dataframe of Candidate tuples 
