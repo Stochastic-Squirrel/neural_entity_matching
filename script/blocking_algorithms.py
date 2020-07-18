@@ -85,6 +85,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     https://www.youtube.com/watch?v=n3dCcwWV4_k
     https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
     
+    hashing_col_position = 
     Bands = Number of Pieces or Bins
     The size of each bin is inferred
 
@@ -106,18 +107,20 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
     # NB! iterating over tuples puts the index in the FIRST position therefore we scale forward the index
     # as specified by the usual column position by 1
-    hashing_col_position += 1
+    #hashing_col_position = np.array(hashing_col_position) + 1
     id_position += 1
     lshcache = cache.Cache(num_bands=bands, hasher=hasher)
 
     for x in rhs_table.itertuples():
-        document_string = x[hashing_col_position] 
+        #document_string = x[hashing_col_position[0]] + " " +  x[hashing_col_position[1]]
+        document_string = x[hashing_col_position]
         docid  = x[id_position]
         # add finger print for entity to the collection
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
 
     for x in lhs_table.itertuples():
-        document_string = x[hashing_col_position] 
+        document_string = x[hashing_col_position]
+        #document_string = x[hashing_col_position[0]] + " " +  x[hashing_col_position[1]] 
         docid  = x[id_position]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
     

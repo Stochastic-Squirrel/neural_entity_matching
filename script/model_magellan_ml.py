@@ -31,7 +31,7 @@ import pickle
 import datetime
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
-
+# TODO: LSH is doing really badly, maybe need to hash more than one column....
 
 
 def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phrase):
@@ -358,7 +358,7 @@ total_num_experiments = 2*(len(lsh_args)) + 2*len(sequential_args)
 
 
 for sampler in ["iterative","naive"]:
-    for block_algo in ["sequential","lsh"]:
+    for block_algo in ["lsh","sequential"]:
         print("--------------------------------------------------")
         print(f"Running on configuration {sampler}:{block_algo}")
         print("--------------------------------------------------")

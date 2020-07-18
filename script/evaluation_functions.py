@@ -206,7 +206,7 @@ def evaluate_matcher(result):
 
 
 
-result = pickle.load(open("../results/magellan_Jul_16_1341.p","rb"))
+result = pickle.load(open("../results/magellan_Jul_18_1630.p","rb"))
 
 blocking_results = evaluate_blocking(result)
 matcher_results = evaluate_matcher(result)
