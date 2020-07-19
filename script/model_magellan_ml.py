@@ -282,8 +282,6 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     generated_df_valid = generated_df_valid.fillna(0)
 
 
-
-
     if train_matchers:
     # Predict on Validation Set
         validation_predictions = {}
@@ -361,14 +359,21 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     else:
         metadata = sequential_args
     print("-----------------------------------------------------------------------------")
-    print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata}")
+    print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata} where train_matchers is: {train_matches}")
     print("-----------------------------------------------------------------------------")
     # Add in sample sizes
     metadata["n_train"] = n_train
     metadata["n_valid"] = n_valid
     metadata["n_test"] = n_test
 
-    return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels, metadata)
+    # return matcher predictions if train_matchers occurs otherwise return predictions via the blocker
+    if train_matchers:
+        return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels, metadata)
+    else:
+        training_predictions, validation_predictions, test_predictions = blocker_as_matcher(n_train, n_valid, n_test)
+        return (training_predictions, validation_predictions, test_predictions, pre_blocked_all_sets_labels, post_blocked_all_sets_labels, metadata)
+
+
 
 sampler_list = []
 blocking_algo_list = []
@@ -400,23 +405,23 @@ for sampler in ["iterative","naive"]:
                 # If entire set of blocked candidates consists of one label only 1 = positive match or 0 = no match, matcher will fail
                 # This is why the try block is here.
                 # TODO: what about cases where blocker is so good we don't need a matcher?
-                try:
-                    result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
-                    sampler_list.append(sampler)
-                    blocking_algo_list.append(block_algo)
-                except:
-                    print(f"Following parameters: {arg_dic} did NOT run.")
-                    continue 
+                #try:
+                result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
+                sampler_list.append(sampler)
+                blocking_algo_list.append(block_algo)
+                # except:
+                #     print(f"Following parameters: {arg_dic} did NOT run.")
+                #     continue 
         else:
             for arg_dic in lsh_args:
                 print(arg_dic)
-                try:
-                    result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
-                    sampler_list.append(sampler)
-                    blocking_algo_list.append(block_algo)
-                except:
-                    print(f"Following parameters: {arg_dic} did NOT run.")
-                    continue
+                #try:
+                result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                sampler_list.append(sampler)
+                blocking_algo_list.append(block_algo)
+                # except:
+                #     print(f"Following parameters: {arg_dic} did NOT run.")
+                #     continue
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 

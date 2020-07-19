@@ -110,7 +110,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     # NB! iterating over tuples puts the index in the FIRST position (adds a col in the beginning) therefore we scale forward the index
     # as specified by the usual column position by 1
     for x in rhs_table.itertuples():
-        document_string = x[hashing_col_position[0]+1] + " " +  x[hashing_col_position[1]+1]
+        document_string = x[hashing_col_position[0]+1] + " " +  str(x[hashing_col_position[1]+1])
         #document_string = x[hashing_col_position + 1]
         docid  = x[id_position + 1]
         # add finger print for entity to the collection
@@ -118,7 +118,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
 
     for x in lhs_table.itertuples():
-        document_string = x[hashing_col_position[0]+1] + " " +  x[hashing_col_position[1]+1]
+        document_string = x[hashing_col_position[0]+1] + " " +  str(x[hashing_col_position[1]+1])
         #document_string = x[hashing_col_position + 1] 
         docid  = x[id_position + 1]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
@@ -158,6 +158,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     non_null_entries = (~candidate_pair_df.index.get_level_values(0).isnull()) & (~candidate_pair_df.index.get_level_values(1).isnull())
     candidate_pair_df = candidate_pair_df.loc[non_null_entries, :]
 
+    lshcache.clear()
 
     return candidate_pair_df
 
