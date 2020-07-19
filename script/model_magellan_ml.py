@@ -31,8 +31,8 @@ import pickle
 import datetime
 # https://nbviewer.jupyter.org/github/anhaidgroup/py_entitymatching/blob/master/notebooks/guides/step_wise_em_guides/Selecting%20the%20Best%20Learning%20Matcher.ipynb
 
-# TODO: LSH is doing really badly, maybe need to hash more than one column....
-
+# TODO: need to think of case where all hashed things are positive matches
+# implementing bypass system now
 
 def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phrase):
     '''
@@ -116,6 +116,24 @@ def automatic_feature_gen(candidate_table, feature_cols, id_names, id_names_phra
 
 
 
+def blocker_as_matcher(n_train, n_valid, n_test):
+    '''
+    Covers the cases where candidate tuples for training consists of a SINGLE class only.
+    Return all predictions for candidates as being a match
+    '''
+    # If model cannot be train
+    training_predictions = {}
+    training_predictions["blocker"] = [1]*n_train
+
+    validation_predictions = {}
+    validation_predictions["blocker"] = [1]*n_valid
+
+    test_predictions = {}
+    test_predictions["blocker"] = [1]*n_test
+
+    return training_predictions, validation_predictions, test_predictions
+
+
 
 def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None, sequential_args = None):
 
@@ -164,7 +182,8 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     #cutoff_distance = 60
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
+        # [1,2] hashes on title and description
+        candidates = lsh_blocking(lhs_table, rhs_table, [1,2], 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
         candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
@@ -173,7 +192,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     else:
         raise ValueError("Blocking must be lsh or sequential")
     
-    
+    print(f"Generated Candidate size has {candidates.shape[0]} rows")
 
     # Generate Features
     id_names_phrase = ["_amzn","_g"] # Trims away these suffixes from id columns
@@ -192,39 +211,48 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     # validation or test phase, these ones will be ignored
     model_features = generated_df_train.columns
 
-    # Train Models on training set
-    dt = em.DTMatcher(name='DecisionTree', random_state=0)
-    svm = em.SVMMatcher(name='SVM', random_state=0)
-    rf = em.RFMatcher(name='RF', random_state=0)
-    lg = em.LogRegMatcher(name='LogReg', random_state=0)
-    ln = em.LinRegMatcher(name='LinReg')
-    xg = em.XGBoostMatcher(name = "Xg-Boost", random_state = 0)
+    # If only one class is present in blocking stage, skip training a matcher as it would be impossible
+    # Essentially label all blocked tuples as being a match
+    train_matchers = True
+    if (len(generated_df_train.y.unique())) <= 1:
+        train_matchers = False 
+        print(f"Train Candidate Pairs only consist of one class. Skipping matcher training and setting blocker as a matcher.")
+        blocker_as_matcher
+  
 
-    dt.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    svm.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    rf.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    lg.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    ln.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    xg.fit(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
+    if train_matchers:
+        # Train Models on training set
+        #dt = em.DTMatcher(name='DecisionTree', random_state=0)
+        #svm = em.SVMMatcher(name='SVM', random_state=0)
+        rf = em.RFMatcher(name='RF', random_state=0)
+        lg = em.LogRegMatcher(name='LogReg', random_state=0)
+        xg = em.XGBoostMatcher(name = "Xg-Boost", random_state = 0)
 
-    models = [dt, svm, rf,  lg, ln, xg]
+        dt.fit(table = generated_df_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
+        # svm.fit(table = generated_df_train, 
+        #         exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+        #         target_attr='y')
+        rf.fit(table = generated_df_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
+        lg.fit(table = generated_df_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
+        xg.fit(table = generated_df_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
 
-    training_predictions = {}
-    for model in models:
-        training_predictions[model.name] = model.predict(table = generated_df_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+        models = [rf,  lg, xg]
+
+        training_predictions = {}
+        for model in models:
+            training_predictions[model.name] = model.predict(table = generated_df_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+
+
+
     # Load validation Set + Generate the feature columns
     em.del_catalog()
     lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_valid_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
@@ -252,33 +280,35 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     generated_df_valid = generated_df_valid.loc[:,model_features]
     ## TODO: think of a better idea!! it is because we enforce all generated data sets to have same columns as training set
     generated_df_valid = generated_df_valid.fillna(0)
-    # Predict on Validation Set
-    validation_predictions = {}
-    for model in models:
-        validation_predictions[model.name] = model.predict(table = generated_df_valid, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
 
-    # Retrain on all data
-    generated_final_train = pd.concat([generated_df_train,generated_df_valid], axis = 0)
-    
-    dt.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    svm.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    rf.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    lg.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    ln.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
-    xg.fit(table = generated_final_train, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-            target_attr='y')
+
+
+
+    if train_matchers:
+    # Predict on Validation Set
+        validation_predictions = {}
+        for model in models:
+            validation_predictions[model.name] = model.predict(table = generated_df_valid, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+
+        # Retrain on all data
+        generated_final_train = pd.concat([generated_df_train,generated_df_valid], axis = 0)
+        
+        # dt.fit(table = generated_final_train, 
+        #         exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+        #         target_attr='y')
+        # svm.fit(table = generated_final_train, 
+        #         exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+        #         target_attr='y')
+        rf.fit(table = generated_final_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
+        lg.fit(table = generated_final_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
+        xg.fit(table = generated_final_train, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+                target_attr='y')
 
 
 
@@ -310,13 +340,13 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     generated_df_test = generated_df_test.loc[:,model_features]
     generated_df_test = generated_df_test.fillna(0)
 
-    
-    # Predict on test Set
-    test_predictions = {}
-    for model in models:
-        print(model.name)
-        test_predictions[model.name] = model.predict(table = generated_df_test, 
-            exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+    if train_matchers:    
+        # Predict on test Set
+        test_predictions = {}
+        for model in models:
+            print(model.name)
+            test_predictions[model.name] = model.predict(table = generated_df_test, 
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
 
 
     # Create pre_blocked_all_sets_labels to store truth of candidate tuples after BLOCKING
@@ -330,7 +360,9 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
         metadata  = lsh_args
     else:
         metadata = sequential_args
+    print("-----------------------------------------------------------------------------")
     print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata}")
+    print("-----------------------------------------------------------------------------")
     # Add in sample sizes
     metadata["n_train"] = n_train
     metadata["n_valid"] = n_valid
@@ -348,8 +380,8 @@ def expand_grid(data_dict):
     rows = itertools.product(*data_dict.values())
     return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
 
-lsh_exploration_space = {"seeds":[200], "char_ngram":[2,3], "bands":[10,25,50]}
-sequential_exploration_space = {"cutoff_distance":[50,60,70], "min_shared_tokens":[1,2,3]}
+lsh_exploration_space = {"seeds":[200], "char_ngram":[2], "bands":[10,25,100]}
+sequential_exploration_space = {"cutoff_distance":[50,60,70,80], "min_shared_tokens":[1,2,3]}
 
 lsh_args = expand_grid(lsh_exploration_space)
 sequential_args = expand_grid(sequential_exploration_space)
@@ -364,6 +396,7 @@ for sampler in ["iterative","naive"]:
         print("--------------------------------------------------")
         if (block_algo == "sequential"):
             for arg_dic in sequential_args:
+                print(arg_dic)
                 # If entire set of blocked candidates consists of one label only 1 = positive match or 0 = no match, matcher will fail
                 # This is why the try block is here.
                 # TODO: what about cases where blocker is so good we don't need a matcher?
@@ -372,14 +405,17 @@ for sampler in ["iterative","naive"]:
                     sampler_list.append(sampler)
                     blocking_algo_list.append(block_algo)
                 except:
+                    print(f"Following parameters: {arg_dic} did NOT run.")
                     continue 
         else:
             for arg_dic in lsh_args:
+                print(arg_dic)
                 try:
                     result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
                     sampler_list.append(sampler)
                     blocking_algo_list.append(block_algo)
                 except:
+                    print(f"Following parameters: {arg_dic} did NOT run.")
                     continue
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}

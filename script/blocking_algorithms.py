@@ -105,23 +105,22 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
         print(f"Id Column name in LHS table is: {lhs_table.columns[id_position ]}, RHS {rhs_table.columns[id_position]}")
         break
 
-    # NB! iterating over tuples puts the index in the FIRST position therefore we scale forward the index
-    # as specified by the usual column position by 1
-    #hashing_col_position = np.array(hashing_col_position) + 1
-    id_position += 1
-    lshcache = cache.Cache(num_bands=bands, hasher=hasher)
 
+    lshcache = cache.Cache(num_bands=bands, hasher=hasher)
+    # NB! iterating over tuples puts the index in the FIRST position (adds a col in the beginning) therefore we scale forward the index
+    # as specified by the usual column position by 1
     for x in rhs_table.itertuples():
-        #document_string = x[hashing_col_position[0]] + " " +  x[hashing_col_position[1]]
-        document_string = x[hashing_col_position]
-        docid  = x[id_position]
+        document_string = x[hashing_col_position[0]+1] + " " +  x[hashing_col_position[1]+1]
+        #document_string = x[hashing_col_position + 1]
+        docid  = x[id_position + 1]
         # add finger print for entity to the collection
+        #print(f"docid {docid}" )
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
 
     for x in lhs_table.itertuples():
-        document_string = x[hashing_col_position]
-        #document_string = x[hashing_col_position[0]] + " " +  x[hashing_col_position[1]] 
-        docid  = x[id_position]
+        document_string = x[hashing_col_position[0]+1] + " " +  x[hashing_col_position[1]+1]
+        #document_string = x[hashing_col_position + 1] 
+        docid  = x[id_position + 1]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
     
 

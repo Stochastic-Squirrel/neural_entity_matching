@@ -114,7 +114,7 @@ def evaluate_matcher(result):
     '''
     Given the post-blocked data sets, evaluate against the train, valid and test truth labels per matching algo
     Each row represents a Sampler-BlockingAlgo - Matcher combination
-    Evaluates
+    Evaluates for the POSITIVE CLASS ONLY
         - Precision of Matcher
         - Recall of Matcher
         - F1 Score
@@ -206,13 +206,11 @@ def evaluate_matcher(result):
 
 
 
-result = pickle.load(open("../results/magellan_Jul_18_1630.p","rb"))
+result = pickle.load(open("../results/magellan_Jul_19_1548.p","rb"))
 
 blocking_results = evaluate_blocking(result)
 matcher_results = evaluate_matcher(result)
 
-
-assert blocking_results.shape[0]*6 == matcher_results.shape[0] 
 
 sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall)
 
@@ -228,3 +226,4 @@ sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_re
 blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
 
 matcher_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
+matcher_results.groupby(["model"]).apply(np.mean)
