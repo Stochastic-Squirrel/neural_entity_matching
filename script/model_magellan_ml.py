@@ -169,7 +169,6 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
 
     # Blocking
     blocking_cols = ["title_amzn","title_g"]
-    #min_shared_tokens = 3
     feature_cols  = [['title_amzn',
     'description_amzn',
     'manufacturer_amzn', 
@@ -179,11 +178,12 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     'manufacturer_g',
     'price_g']]
     id_names = ["id_amzn","id_g"]
-    #cutoff_distance = 60
+    lsh_blocking_col_ids = 2
+
 
     if (blocking == "lsh"):
         # [1,2] hashes on title and description
-        candidates = lsh_blocking(lhs_table, rhs_table, [1,2], 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
+        candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
         candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
@@ -217,7 +217,6 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     if (len(generated_df_train.y.unique())) <= 1:
         train_matchers = False 
         print(f"Train Candidate Pairs only consist of one class. Skipping matcher training and setting blocker as a matcher.")
-        blocker_as_matcher
   
 
     if train_matchers:
@@ -228,9 +227,9 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
         lg = em.LogRegMatcher(name='LogReg', random_state=0)
         xg = em.XGBoostMatcher(name = "Xg-Boost", random_state = 0)
 
-        dt.fit(table = generated_df_train, 
-                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
-                target_attr='y')
+        # dt.fit(table = generated_df_train, 
+        #         exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
+        #         target_attr='y')
         # svm.fit(table = generated_df_train, 
         #         exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs'],
         #         target_attr='y')
@@ -265,7 +264,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     n_valid  = lhs_table.shape[0]
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
+        candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
         candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
@@ -323,7 +322,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     n_test  = lhs_table.shape[0]
 
     if (blocking == "lsh"):
-        candidates = lsh_blocking(lhs_table, rhs_table, 1, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
+        candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
         # Initial Rough Blocking on Overlapped Attributes
         candidates = overlapped_attribute_blocking(lhs_table, rhs_table, blocking_cols, sequential_args["min_shared_tokens"] , feature_cols, id_names)
@@ -359,7 +358,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     else:
         metadata = sequential_args
     print("-----------------------------------------------------------------------------")
-    print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata} where train_matchers is: {train_matches}")
+    print(f"Finished Experiment using {sampler} and {blocking} with params: {metadata} where train_matchers is: {train_matchers}")
     print("-----------------------------------------------------------------------------")
     # Add in sample sizes
     metadata["n_train"] = n_train
@@ -385,7 +384,7 @@ def expand_grid(data_dict):
     rows = itertools.product(*data_dict.values())
     return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
 
-lsh_exploration_space = {"seeds":[200], "char_ngram":[2], "bands":[10,25,100]}
+lsh_exploration_space = {"seeds":[200], "char_ngram":[4,5], "bands":[10,25,100]}
 sequential_exploration_space = {"cutoff_distance":[50,60,70,80], "min_shared_tokens":[1,2,3]}
 
 lsh_args = expand_grid(lsh_exploration_space)
@@ -395,7 +394,8 @@ total_num_experiments = 2*(len(lsh_args)) + 2*len(sequential_args)
 
 
 for sampler in ["iterative","naive"]:
-    for block_algo in ["lsh","sequential"]:
+    for block_algo in ["lsh"]:
+        print("ADD SEQUENTIAL BACK IN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         print("--------------------------------------------------")
         print(f"Running on configuration {sampler}:{block_algo}")
         print("--------------------------------------------------")
@@ -417,6 +417,7 @@ for sampler in ["iterative","naive"]:
                 print(arg_dic)
                 #try:
                 result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                print("ran")
                 sampler_list.append(sampler)
                 blocking_algo_list.append(block_algo)
                 # except:
@@ -426,3 +427,6 @@ for sampler in ["iterative","naive"]:
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
 pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
+
+
+# {'seeds': 200, 'char_ngram': 5, 'bands': 10}

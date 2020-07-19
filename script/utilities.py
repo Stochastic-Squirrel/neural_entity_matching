@@ -12,7 +12,7 @@ Script contains the abstract EM_Data class which produces training, valid and te
 Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included.
 Also Includes plotting functions and other helper functions used in other scripts
 '''
-# TODO: add a naive random sample option for EM_data
+
 class EM_Data:
     # Utility Functions
     def calculate_edit_distance(self, x,cols):
@@ -547,3 +547,4 @@ def shingles(text, char_ngram=5):
 #  prop_train = 0.8
 #  seed = 80085
 
+shingles("punch ",5)
