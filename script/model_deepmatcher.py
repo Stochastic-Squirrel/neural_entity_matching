@@ -71,7 +71,7 @@ tokenizer = "spacy"
 
 
 lsh_args = [{"seeds":200, "char_ngram":2, "bands": 4},
-{"seeds":200, "char_ngram":2, "bands": 10}]
+{"seeds":10000, "char_ngram":4, "bands": [500,1000,1250]}]
 sequential_args = [{"cutoff_distance":60, "min_shared_tokens":4},
     {"cutoff_distance":80, "min_shared_tokens":2}
 ]

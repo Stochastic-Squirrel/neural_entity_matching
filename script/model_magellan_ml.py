@@ -178,9 +178,9 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     'manufacturer_g',
     'price_g']]
     id_names = ["id_amzn","id_g"]
-    lsh_blocking_col_ids = 2
+    lsh_blocking_col_ids = 1
 
-
+    print("Blocking Train Set")
     if (blocking == "lsh"):
         # [1,2] hashes on title and description
         candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
@@ -262,7 +262,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     em.set_key(rhs_table, "id_rhs")
 
     n_valid  = lhs_table.shape[0]
-
+    print("Blocking Validation Set")
     if (blocking == "lsh"):
         candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
@@ -320,7 +320,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     em.set_key(rhs_table, "id_rhs")
 
     n_test  = lhs_table.shape[0]
-
+    print("Blocking Test Set")
     if (blocking == "lsh"):
         candidates = lsh_blocking(lhs_table, rhs_table, lsh_blocking_col_ids, 5, ["id_amzn","id_g"], char_ngram = lsh_args["char_ngram"], seeds = lsh_args["seeds"], bands = lsh_args["bands"])
     elif (blocking == "sequential"):
@@ -384,7 +384,8 @@ def expand_grid(data_dict):
     rows = itertools.product(*data_dict.values())
     return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
 
-lsh_exploration_space = {"seeds":[200], "char_ngram":[4,5], "bands":[10,25,100]}
+# [500,1000,1250]
+lsh_exploration_space = {"seeds":[10000], "char_ngram":[3], "bands":[500,1000,1250]}
 sequential_exploration_space = {"cutoff_distance":[50,60,70,80], "min_shared_tokens":[1,2,3]}
 
 lsh_args = expand_grid(lsh_exploration_space)
@@ -409,24 +410,24 @@ for sampler in ["iterative","naive"]:
                 result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
                 sampler_list.append(sampler)
                 blocking_algo_list.append(block_algo)
-                # except:
-                #     print(f"Following parameters: {arg_dic} did NOT run.")
-                #     continue 
+                #except:
+                    # print(f"Following parameters: {arg_dic} did NOT run.")
+                    # continue 
         else:
             for arg_dic in lsh_args:
                 print(arg_dic)
-                #try:
-                result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
-                print("ran")
-                sampler_list.append(sampler)
-                blocking_algo_list.append(block_algo)
-                # except:
-                #     print(f"Following parameters: {arg_dic} did NOT run.")
-                #     continue
+                try:
+                    result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                    print("ran")
+                    sampler_list.append(sampler)
+                    blocking_algo_list.append(block_algo)
+                except:
+                    print(f"Following parameters: {arg_dic} did NOT run.")
+                    continue
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
 pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
-
+print("Results have been saved.")
 
 # {'seeds': 200, 'char_ngram': 5, 'bands': 10}

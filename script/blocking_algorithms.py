@@ -107,12 +107,16 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
 
     lshcache = cache.Cache(num_bands=bands, hasher=hasher)
+    lshcache.clear()
     # NB! iterating over tuples puts the index in the FIRST position (adds a col in the beginning) therefore we scale forward the index
     # as specified by the usual column position by 1
     print("Adding Fingerprints")
     for x in rhs_table.itertuples():
         #document_string = x[hashing_col_position[0]+1] + " " +  str(x[hashing_col_position[1]+1]) + str(x[hashing_col_position[2]+1]) 
         document_string = str(x[hashing_col_position + 1])
+        # If the doc string is ShORTER than char_ngram will throw an error with no message
+        if (len(document_string) < char_ngram ):
+            document_string = document_string + " "*(char_ngram-len(document_string))
         docid  = x[id_position + 1]
         # add finger print for entity to the collection
         #print(f"docid {docid}" )
@@ -120,7 +124,9 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
     for x in lhs_table.itertuples():
         #document_string = x[hashing_col_position[0]+1] + " " +  str(x[hashing_col_position[1]+1]) + str(x[hashing_col_position[2]+1])
-        document_string = str(x[hashing_col_position + 1]) 
+        document_string = str(x[hashing_col_position + 1])
+        if (len(document_string) < char_ngram ):
+            document_string = document_string + " "*(char_ngram-len(document_string)) 
         docid  = x[id_position + 1]
         lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
     
@@ -170,12 +176,18 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 # TODO: understand why blocking phase fails so much for LSh
 # debug this:
 seeds = 10000
-char_ngram = 4
-bands = 2000
+char_ngram = 8
+bands = 500
+#bands = 1250
 sampler = "iterative"
 hashbytes = 4
 hashing_col_position = 1
 id_position = 5
 id_names = ["id_amzn","id_g"]
-lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_train_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
-rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_train_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
+lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_test_lhs.csv").rename(columns = {"Unnamed: 0":"id_lhs"})
+#lhs_table = lhs_table.drop(246)
+rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_test_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
+
+# IT IS THE ER ROW!!!!
+# if you pick a char_ngram too large, it will crash as you are creating an empty set!!!!
+# 140 test naive rhs google
