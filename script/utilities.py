@@ -7,6 +7,7 @@ from fuzzywuzzy import process
 import os
 from functools import reduce
 
+
 '''
 Script contains the abstract EM_Data class which produces training, valid and test sets
 Specific implementations of EM_Data for Amazon-Google product and Quora question pairs are included.
@@ -536,6 +537,7 @@ def shingles(text, char_ngram=5):
     intersection = set_a & set_b
     union = set_a | set_b
     return len(intersection) / len(union)
+
 
 #plot_lsh_candidate_prob([(25,8),(4,50), (100,2)], 200)
 

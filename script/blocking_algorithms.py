@@ -80,7 +80,7 @@ def edit_distance_blocking(lhs_table, rhs_table, blocking_cols, cutoff_distance,
     return candidate_pairs
 
 # Credit: https://github.com/mattilyra/lsh for the minhash algorithm
-def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_names, char_ngram=5, seeds=100, bands=5, hashbytes=4):
+def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_names, char_ngram=5, seeds=100, bands=5):
     '''
     https://www.youtube.com/watch?v=n3dCcwWV4_k
     https://nbviewer.jupyter.org/github/mattilyra/LSH/blob/master/examples/Introduction.ipynb
@@ -93,7 +93,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
         Returns a Dataframe of Candidate tuples 
     '''
 
-    hasher = minhash.MinHasher(seeds=seeds, char_ngram=char_ngram, hashbytes=hashbytes)
+    hasher = minhash.MinHasher(seeds=seeds, char_ngram=char_ngram, hashbytes=4)
     if seeds % bands != 0:
         raise ValueError('Seeds has to be a multiple of bands. {} % {} != 0'.format(seeds, bands))
 
@@ -120,7 +120,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
         docid  = x[id_position + 1]
         # add finger print for entity to the collection
         #print(f"docid {docid}" )
-        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+        lshcache.add_fingerprint(hasher.fingerprint(document_string.encode('utf8')), docid)
 
     for x in lhs_table.itertuples():
         #document_string = x[hashing_col_position[0]+1] + " " +  str(x[hashing_col_position[1]+1]) + str(x[hashing_col_position[2]+1])
@@ -128,7 +128,7 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
         if (len(document_string) < char_ngram ):
             document_string = document_string + " "*(char_ngram-len(document_string)) 
         docid  = x[id_position + 1]
-        lshcache.add_fingerprint(hasher.fingerprint(document_string), docid)
+        lshcache.add_fingerprint(hasher.fingerprint(document_string.encode('utf8')), docid)
     
 
     print("Generating Possible Pairs")
@@ -145,22 +145,46 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
     print("Pruning and re-arranging possible pair indices.")
     appropriate_indices = set()
-    for i in candidate_pairs:
-        # Create a hierarchical index 
-        candidate_index = pd.Index([i])
-        # First Try: Assume Correct Alignment
-        if ((candidate_index.get_level_values(0).isin(lhs_table.index)) & (candidate_index.get_level_values(1).isin(rhs_table.index))):
-            appropriate_indices.update({i})
-        elif ((candidate_index.get_level_values(1).isin(lhs_table.index)) & (candidate_index.get_level_values(0).isin(rhs_table.index))): 
-        # Assuming that the LHS index is actually in position one for this candidate pair
-        # If this is the case, you need to swap the candidate_index values to align with lhs_table; rhs_table ordering
-            appropriate_indices.update({(i[1],i[0])})
-        # If a candidate index does NOT pass any of these tests, it means that it represents a WITHIN table possible duplicate
-        # This is not the objective of this code
+    #Faster Way than interating through all pairs
+    candidate_indices = pd.Index(candidate_pairs)
+
+    # Split indices into position 1 and 2 and then we check to see where it matches up
+    candidate_indices_p1 = pd.Index([ x[0] for x in candidate_indices])
+    candidate_indices_p2 = pd.Index([ x[1] for x in candidate_indices])
+    # Central issue is that by default within table candidate pairs are given and sometimes the lhs and rhs indices are swapped
+
+    # Check if correct lhs + rhs alignment is met and store those indices
+    candidate_pairs_correct_alignment_bool = ((candidate_indices_p1.isin(lhs_table.index)) & (candidate_indices_p2.isin(rhs_table.index)))
+    correct_alignment_indices = pd.MultiIndex.from_arrays([candidate_indices_p1[candidate_pairs_correct_alignment_bool],candidate_indices_p2[candidate_pairs_correct_alignment_bool]])
+    # Now consider the fact that the indices for lhs are in the SECOND posiition in candidate indices and save accordingly
+    # Check for VALID across table pairs BUT the order has just been switched
+    candidate_pairs_switched_alignment_bool = ((candidate_indices_p2.isin(lhs_table.index)) & (candidate_indices_p1.isin(rhs_table.index)))
+    switched_alignment_indices = pd.MultiIndex.from_arrays([candidate_indices_p2[candidate_pairs_switched_alignment_bool],candidate_indices_p1[candidate_pairs_switched_alignment_bool]])
+    # Now merge the two sets of indices together
+    appropriate_indices = correct_alignment_indices.union(switched_alignment_indices)
+    appropriate_indices.names = id_names
+
+    # Old implementation of iterating through
+    # for i in candidate_pairs:
+    #     # Create a hierarchical index 
+    #     candidate_index = pd.Index([i])
+    #     # First Try: Assume Correct Alignment
+    #     if ((candidate_index.get_level_values(0).isin(lhs_table.index)) & (candidate_index.get_level_values(1).isin(rhs_table.index))):
+    #         appropriate_indices.update({i})
+    #     elif ((candidate_index.get_level_values(1).isin(lhs_table.index)) & (candidate_index.get_level_values(0).isin(rhs_table.index))): 
+    #     # Assuming that the LHS index is actually in position one for this candidate pair
+    #     # If this is the case, you need to swap the candidate_index values to align with lhs_table; rhs_table ordering
+    #         appropriate_indices.update({(i[1],i[0])})
+    #     # If a candidate index does NOT pass any of these tests, it means that it represents a WITHIN table possible duplicate
+    #     # This is not the objective of this code
 
     # Convert set object to an index for easy pandas manipulation
-    appropriate_indices = pd.Index(appropriate_indices)
-    candidate_pair_df = pd.concat([lhs_table.loc[lhs_table.index.isin(appropriate_indices.get_level_values(0)),:].reset_index(), rhs_table.loc[rhs_table.index.isin(appropriate_indices.get_level_values(1)),:].reset_index()],axis = 1)
+    #appropriate_indices = pd.Index(appropriate_indices, names = id_names)
+
+    # lhs_table.loc[appropriate_indices.get_level_values(0)]
+    # rhs_table.loc[appropriate_indices.get_level_values(1)]
+
+    candidate_pair_df = pd.concat([lhs_table.loc[appropriate_indices.get_level_values(0)].reset_index(), rhs_table.loc[appropriate_indices.get_level_values(1)].reset_index()],axis = 1)
     candidate_pair_df = candidate_pair_df.set_index(keys = id_names)
     # Remove instances where id_names contain null entries
     non_null_entries = (~candidate_pair_df.index.get_level_values(0).isnull()) & (~candidate_pair_df.index.get_level_values(1).isnull())
@@ -173,11 +197,11 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
 
 
 
-# TODO: understand why blocking phase fails so much for LSh
-# debug this:
+# # TODO: understand why blocking phase fails so much for LSh
+# # debug this:
 seeds = 10000
 char_ngram = 8
-bands = 500
+bands = 2500
 #bands = 1250
 sampler = "iterative"
 hashbytes = 4
@@ -188,6 +212,7 @@ lhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" +
 #lhs_table = lhs_table.drop(246)
 rhs_table = em.read_csv_metadata("../data/processed_amazon_google/amz_google_" + sampler + "_X_test_rhs.csv").rename(columns = {"Unnamed: 0":"id_rhs"})
 
-# IT IS THE ER ROW!!!!
-# if you pick a char_ngram too large, it will crash as you are creating an empty set!!!!
-# 140 test naive rhs google
+# # IT IS THE ER ROW!!!!
+# # if you pick a char_ngram too large, it will crash as you are creating an empty set!!!!
+# # 140 test naive rhs google
+

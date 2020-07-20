@@ -178,7 +178,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     'manufacturer_g',
     'price_g']]
     id_names = ["id_amzn","id_g"]
-    lsh_blocking_col_ids = 1
+    lsh_blocking_col_ids = 2
 
     print("Blocking Train Set")
     if (blocking == "lsh"):
@@ -378,14 +378,14 @@ sampler_list = []
 blocking_algo_list = []
 result_obj_list = []
 
-
 def expand_grid(data_dict):
     # Produces dictionary objects across exploration space
     rows = itertools.product(*data_dict.values())
     return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
 
+
 # [500,1000,1250]
-lsh_exploration_space = {"seeds":[10000], "char_ngram":[3], "bands":[500,1000,1250]}
+lsh_exploration_space = {"seeds":[10000], "char_ngram":[4], "bands":[5000,10000]}
 sequential_exploration_space = {"cutoff_distance":[50,60,70,80], "min_shared_tokens":[1,2,3]}
 
 lsh_args = expand_grid(lsh_exploration_space)
