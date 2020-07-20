@@ -24,9 +24,15 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_recall_curve, average_precision_score, f1_score
 import itertools
 
+def count_off_diagonal(size):
+    '''
+    Counts upper or lower number of entries in a square matrix excluding the diagonal.
+    Presumes a size x size sized matrix.
+    '''
+    return np.sum(np.arange(start = 1, stop = size))
 
 def evaluate_blocking(result):
     '''
@@ -47,7 +53,7 @@ def evaluate_blocking(result):
     # Extract pre-blocked data for train, valid, test
     ## Choice of experiment id is arbitrary as data is repeated in the PRE-blocking stage
 
-
+    #TODO: check pruning power calculations
 
     # Calculate Pruning Potential from Magellan paper
     ## Prune Rate = 1 - rows(Post_block)/rows(Pre_block)^2
@@ -76,9 +82,9 @@ def evaluate_blocking(result):
             post_valid_size = obj[4]["valid"].shape[0]
             post_test_size =  obj[4]["test"].shape[0]
 
-            train_pruning.append(1-(post_train_size/pre_train_size**2))
-            valid_pruning.append(1-(post_valid_size/pre_valid_size**2))
-            test_pruning.append(1-(post_test_size/pre_test_size**2))
+            train_pruning.append(1-(post_train_size/count_off_diagonal(pre_train_size)))
+            valid_pruning.append(1-(post_valid_size/count_off_diagonal(pre_valid_size)))
+            test_pruning.append(1-(post_test_size/count_off_diagonal(pre_test_size)))
             # Analyse Recall of Positive Matches
             ## Compute proportion of the ground truth number of POSITIVE matches found in post-blocked sets
             ## We aim to recall all of the positive matches 
@@ -114,6 +120,10 @@ def evaluate_matcher(result):
     '''
     Given the post-blocked data sets, evaluate against the train, valid and test truth labels per matching algo
     Each row represents a Sampler-BlockingAlgo - Matcher combination
+
+    Assumes predictions for each model are a MATCHING score between 0 to 1.
+    1 being a predicted certainty of a match.
+
     Evaluates for the POSITIVE CLASS ONLY
         - Precision of Matcher
         - Recall of Matcher
@@ -131,17 +141,22 @@ def evaluate_matcher(result):
 
     precision_list_train = []
     recall_list_train = []
-    f1_score_list_train = []
+    #f1_score_list_train = []
+    average_precision_train = []
 
     precision_list_valid = []
     recall_list_valid = []
-    f1_score_list_valid = []
+    #f1_score_list_valid = []
+    average_precision_valid = []
 
     precision_list_test = []
     recall_list_test = []
-    f1_score_list_test = []
+    #f1_score_list_test = []
+    average_precision_test = []
 
     metadata_list = []
+
+    threshold_list = []
 
     model_list = []
     # Cycle through experiments
@@ -158,23 +173,31 @@ def evaluate_matcher(result):
 
             metadata_list.append(obj[5])
 
-            train_predictions = obj[0][model]
-            valid_predictions = obj[1][model]
-            test_predictions = obj[2][model]
+            # Gather predictions on a probability scale
+            train_predictions = obj[0][model][1]
+            valid_predictions = obj[1][model][1]
+            test_predictions = obj[2][model][1]
 
             # Calculate and Store Metrics
             ## y_true, y_pred
-            precision_list_train.append(precision_score(train_labels.y.values,train_predictions))
-            recall_list_train.append(recall_score(train_labels.y.values,train_predictions))
-            f1_score_list_train.append(f1_score(train_labels.y.values,train_predictions))
+            train_precision, train_recall, train_thresh = precision_recall_curve(train_labels.y, train_predictions)
+            precision_list_train.append(train_precision)
+            recall_list_train.append(train_recall)
+            average_precision_train.append(average_precision_score(train_labels.y, train_predictions))
 
-            precision_list_valid.append(precision_score(valid_labels.y.values,valid_predictions))
-            recall_list_valid.append(recall_score(valid_labels.y.values,valid_predictions))
-            f1_score_list_valid.append(f1_score(valid_labels.y.values,valid_predictions))
+            valid_precision, valid_recall, valid_thresh = precision_recall_curve(valid_labels.y, valid_predictions)
+            precision_list_valid.append(valid_precision)
+            recall_list_valid.append(valid_recall)
+            average_precision_valid.append(average_precision_score(valid_labels.y, valid_predictions))
 
-            precision_list_test.append(precision_score(test_labels.y.values,test_predictions))
-            recall_list_test.append(recall_score(test_labels.y.values,test_predictions))
-            f1_score_list_test.append(f1_score(test_labels.y.values,test_predictions))
+            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels.y, test_predictions)
+            precision_list_test.append(test_precision)
+            recall_list_test.append(test_recall)
+            average_precision_test.append(average_precision_score(test_labels.y, test_predictions))
+
+            threshold_list.append([train_thresh, valid_thresh, test_thresh])
+
+
 
 
 
@@ -183,47 +206,121 @@ def evaluate_matcher(result):
                     "model":model_list,
                     "train_precision":precision_list_train,
                     "train_recall":recall_list_train,
-                    "train_f1":f1_score_list_train,
+                    "train_average_precision":average_precision_train,
                     "valid_precision":precision_list_valid,
                     "valid_recall":recall_list_valid,
-                    "valid_f1":f1_score_list_valid,
+                    "valid_average_precision":average_precision_valid,
                     "test_precision":precision_list_test,
                     "test_recall":recall_list_test,
-                    "test_f1":f1_score_list_test,
+                    "test_average_precision":average_precision_test,
+                    "thresholds":threshold_list,
                     "metadata":metadata_list})
 
+#TODO: issue with sampler not being extracted properly 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-result = pickle.load(open("../results/magellan_Jul_20_0110.p","rb"))
+result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
 
 blocking_results = evaluate_blocking(result)
+blocking_samplers = [ x["sampler"] for x in blocking_results["metadata"]]
+blocking_blocks = [x["blocking"] for x in blocking_results["metadata"]]
+nrow = blocking_results.shape[0]
+
+cutoff_list = ["NA"] * nrow
+min_shared_list = ["NA"] * nrow
+char_ngram_list = ["NA"] *nrow
+bands_list = ["NA"] *nrow
+
+for i, blocking in enumerate(blocking_blocks):
+    if (blocking == "sequential"):
+        cutoff_list[i] = str(blocking_results["metadata"][i]["cutoff_distance"])
+        min_shared_list[i] = str(blocking_results["metadata"][i]["min_shared_tokens"])
+    else:
+        char_ngram_list[i] = str(blocking_results["metadata"][i]["char_ngram"])
+        bands_list[i] = str(blocking_results["metadata"][i]["bands"])
+
+id_col = [""]*nrow
+
+for i in np.arange(nrow):
+    id_col[i] = blocking_samplers[i] + blocking_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+
+
+
+
+blocking_results['sampler'] = blocking_samplers
+blocking_results['blocking_algo'] = blocking_blocks
+blocking_results['cutoff_distance'] = cutoff_list
+blocking_results['min_shared_tokens'] = min_shared_list
+blocking_results['char_ngram'] = char_ngram_list
+blocking_results['bands'] = bands_list
+blocking_results['id']= id_col
+blocking_results.set_index("id", inplace = True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 matcher_results = evaluate_matcher(result)
+matcher_samplers = [ x["sampler"] for x in matcher_results["metadata"]]
+matcher_blocks = [x["blocking"] for x in matcher_results["metadata"]]
+nrow = matcher_results.shape[0]
+
+cutoff_list = ["NA"] * nrow
+min_shared_list = ["NA"] * nrow
+char_ngram_list = ["NA"] *nrow
+bands_list = ["NA"] *nrow
 
 
-sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall)
+
+id_col = [""]*nrow
 
 
-# blocking_results.loc[5,"metadata"]
-# {'cutoff_distance': 80,
-#  'min_shared_tokens': 2,
-#  'n_train': 915,
-#  'n_valid': 245,
-#  'n_test': 250}
 
 
+for i, blocking in enumerate(matcher_blocks):
+    if (blocking == "sequential"):
+        cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
+        min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
+    else:
+        char_ngram_list[i] = str(matcher_results["metadata"][i]["char_ngram"])
+        bands_list[i] = str(matcher_results["metadata"][i]["bands"])
+
+
+for i in np.arange(nrow):
+    id_col[i] = matcher_samplers[i] + matcher_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+matcher_results['sampler'] = matcher_samplers
+matcher_results['blocking_algo'] = matcher_blocks
+matcher_results['cutoff_distance'] = cutoff_list
+matcher_results['min_shared_tokens'] = min_shared_list
+matcher_results['char_ngram'] = char_ngram_list
+matcher_results['bands'] = bands_list
+matcher_results['id'] = id_col
+matcher_results.set_index("id", inplace = True)
+
+# Visualise some results
+sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall, style = blocking_results.blocking_algo, hue = blocking_results.sampler)
 blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
-
 matcher_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
-matcher_results.groupby(["model"]).apply(np.mean)
+matcher_results.groupby(["model","sampler","blocking_algo"]).apply(np.mean)
+
+
+all_results = pd.merge(matcher_results, blocking_results,left_index = True, right_index = True, suffixes = ("_m","_b"))
+
+all_results["overall_recall"] = all_results.test_recall_b * all_results.test_recall_m
+
+
+all_results[["sampler_m","blocking_algo_m","model","overall_recall"]]
+

@@ -135,7 +135,7 @@ def blocker_as_matcher(n_train, n_valid, n_test):
 
 
 
-def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None, sequential_args = None):
+def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None, sequential_args = None, return_prob_estimates = True):
 
 
     '''
@@ -178,7 +178,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     'manufacturer_g',
     'price_g']]
     id_names = ["id_amzn","id_g"]
-    lsh_blocking_col_ids = 2
+    lsh_blocking_col_ids = 1
 
     print("Blocking Train Set")
     if (blocking == "lsh"):
@@ -248,7 +248,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
         training_predictions = {}
         for model in models:
             training_predictions[model.name] = model.predict(table = generated_df_train, 
-                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"], return_probs= return_prob_estimates)
 
 
 
@@ -286,7 +286,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
         validation_predictions = {}
         for model in models:
             validation_predictions[model.name] = model.predict(table = generated_df_valid, 
-                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"], return_probs= return_prob_estimates)
 
         # Retrain on all data
         generated_final_train = pd.concat([generated_df_train,generated_df_valid], axis = 0)
@@ -343,7 +343,7 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
         for model in models:
             print(model.name)
             test_predictions[model.name] = model.predict(table = generated_df_test, 
-                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"])
+                exclude_attrs=['index', 'id_amzn','id_g','index_num_lhs', 'index_num_rhs',"y"], return_probs= return_prob_estimates)
 
 
     # Create pre_blocked_all_sets_labels to store truth of candidate tuples after BLOCKING
@@ -364,6 +364,8 @@ def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None
     metadata["n_train"] = n_train
     metadata["n_valid"] = n_valid
     metadata["n_test"] = n_test
+    metadata["sampler"] = sampler
+    metadata["blocking"] = blocking
 
     # return matcher predictions if train_matchers occurs otherwise return predictions via the blocker
     if train_matchers:
@@ -384,8 +386,8 @@ def expand_grid(data_dict):
     return pd.DataFrame.from_records(rows, columns=data_dict.keys()).to_dict("records")
 
 
-# [500,1000,1250]
-lsh_exploration_space = {"seeds":[10000], "char_ngram":[4], "bands":[5000,10000]}
+
+lsh_exploration_space = {"seeds":[10000], "char_ngram":[8], "bands":[2500,5000]}
 sequential_exploration_space = {"cutoff_distance":[50,60,70,80], "min_shared_tokens":[1,2,3]}
 
 lsh_args = expand_grid(lsh_exploration_space)
@@ -395,8 +397,7 @@ total_num_experiments = 2*(len(lsh_args)) + 2*len(sequential_args)
 
 
 for sampler in ["iterative","naive"]:
-    for block_algo in ["lsh"]:
-        print("ADD SEQUENTIAL BACK IN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    for block_algo in ["lsh","sequential"]:
         print("--------------------------------------------------")
         print(f"Running on configuration {sampler}:{block_algo}")
         print("--------------------------------------------------")
@@ -405,7 +406,6 @@ for sampler in ["iterative","naive"]:
                 print(arg_dic)
                 # If entire set of blocked candidates consists of one label only 1 = positive match or 0 = no match, matcher will fail
                 # This is why the try block is here.
-                # TODO: what about cases where blocker is so good we don't need a matcher?
                 #try:
                 result_obj_list.append(run_magellan_models(sampler,block_algo, sequential_args = arg_dic))
                 sampler_list.append(sampler)
@@ -416,18 +416,16 @@ for sampler in ["iterative","naive"]:
         else:
             for arg_dic in lsh_args:
                 print(arg_dic)
-                try:
-                    result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
-                    print("ran")
-                    sampler_list.append(sampler)
-                    blocking_algo_list.append(block_algo)
-                except:
-                    print(f"Following parameters: {arg_dic} did NOT run.")
-                    continue
+                #try:
+                result_obj_list.append(run_magellan_models(sampler,block_algo, lsh_args = arg_dic))
+                print("ran")
+                sampler_list.append(sampler)
+                blocking_algo_list.append(block_algo)
+                #except:
+                # print(f"Following parameters: {arg_dic} did NOT run.")
+                # continue
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
 pickle.dump( all_results, open( "../results/magellan_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
 print("Results have been saved.")
-
-# {'seeds': 200, 'char_ngram': 5, 'bands': 10}
