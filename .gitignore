@@ -129,5 +129,8 @@ dmypy.json
 .pyre/
 
 # Any hidden folders
-data/
+data/amazon_google
+data/processed_quora
+data/tmp
+data/quora
 
