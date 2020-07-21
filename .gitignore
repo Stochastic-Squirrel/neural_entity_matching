@@ -131,6 +131,5 @@ dmypy.json
 # Any hidden folders
 data/amazon_google
 data/processed_quora
-data/tmp
 data/quora
 
