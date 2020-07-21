@@ -92,15 +92,15 @@ def fit_deepmatcher(model_args, train, validation, test, batch_size = 16):
     model.run_train(
         train,
         validation,
-        epochs=10,
+        epochs=5,
         batch_size= batch_size,
         best_save_path='../results/' + model_args["attr_summarizer"] + '.pth',
         pos_neg_ratio=2)
     # Create and store predictions
     ## Name of the model is the attr summarizer setting
-    train_predictions = {model_args["attr_summarizer"]:np.round(model.run_prediction(train).match_score.values,0)}
-    valid_predictions = {model_args["attr_summarizer"]:np.round(model.run_prediction(validation).match_score.values,0)}
-    test_predictions = {model_args["attr_summarizer"]:np.round(model.run_prediction(test).match_score.values,0)}
+    train_predictions = {model_args["attr_summarizer"]:model.run_prediction(train).match_score.values}
+    valid_predictions = {model_args["attr_summarizer"]:model.run_prediction(validation).match_score.values}
+    test_predictions = {model_args["attr_summarizer"]:model.run_prediction(test).match_score.values}
 
 
     # Create source of truth to be used for evaluation_functions.py
@@ -145,7 +145,8 @@ def run_deepmatcher_models(deepmatcher_args):
                             left_prefix='lhs_',
                             right_prefix='rhs_',
                             label_attr='y',
-                            id_attr='id')
+                            id_attr='id',
+                            pca = False)
                         # Fit model and return predictions
                         result_obj_list.append(fit_deepmatcher(model_args,train, validation, test))
 

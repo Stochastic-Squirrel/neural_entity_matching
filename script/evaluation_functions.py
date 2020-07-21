@@ -220,10 +220,12 @@ def evaluate_matcher(result):
                     "thresholds":threshold_list,
                     "metadata":metadata_list})
 
-#TODO: issue with sampler not being extracted properly 
 
 
-result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
+
+#result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
+result = pickle.load(open("../results/deep_matcher_Jul_21_1513.p","rb"))
+
 
 blocking_results = evaluate_blocking(result)
 blocking_samplers = result["sampler"]
