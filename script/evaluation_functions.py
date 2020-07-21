@@ -25,7 +25,11 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import precision_recall_curve, average_precision_score, f1_score
+#from sklearn.metrics import plot_precision_recall_curve
 import itertools
+
+
+# TODO: work out how to genearted matching results when using LSH as a matcher
 
 def count_off_diagonal(size):
     '''
@@ -222,8 +226,8 @@ def evaluate_matcher(result):
 result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
 
 blocking_results = evaluate_blocking(result)
-blocking_samplers = [ x["sampler"] for x in blocking_results["metadata"]]
-blocking_blocks = [x["blocking"] for x in blocking_results["metadata"]]
+blocking_samplers = result["sampler"]
+blocking_blocks = result["blocking_algo"]
 nrow = blocking_results.shape[0]
 
 cutoff_list = ["NA"] * nrow
@@ -248,8 +252,8 @@ for i in np.arange(nrow):
 
 
 
-blocking_results['sampler'] = blocking_samplers
-blocking_results['blocking_algo'] = blocking_blocks
+# blocking_results['sampler'] = blocking_samplers
+# blocking_results['blocking_algo'] = blocking_blocks
 blocking_results['cutoff_distance'] = cutoff_list
 blocking_results['min_shared_tokens'] = min_shared_list
 blocking_results['char_ngram'] = char_ngram_list
@@ -273,8 +277,8 @@ blocking_results.set_index("id", inplace = True)
 
 
 matcher_results = evaluate_matcher(result)
-matcher_samplers = [ x["sampler"] for x in matcher_results["metadata"]]
-matcher_blocks = [x["blocking"] for x in matcher_results["metadata"]]
+# matcher_samplers = [ x["sampler"] for x in matcher_results["metadata"]]
+# matcher_blocks = [x["blocking"] for x in matcher_results["metadata"]]
 nrow = matcher_results.shape[0]
 
 cutoff_list = ["NA"] * nrow
@@ -289,7 +293,7 @@ id_col = [""]*nrow
 
 
 
-for i, blocking in enumerate(matcher_blocks):
+for i, blocking in enumerate(matcher_results.blocking_algo):
     if (blocking == "sequential"):
         cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
         min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
@@ -299,10 +303,9 @@ for i, blocking in enumerate(matcher_blocks):
 
 
 for i in np.arange(nrow):
-    id_col[i] = matcher_samplers[i] + matcher_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+    id_col[i] = matcher_results.sampler[i] + matcher_results.blocking_algo[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
 
-matcher_results['sampler'] = matcher_samplers
-matcher_results['blocking_algo'] = matcher_blocks
+
 matcher_results['cutoff_distance'] = cutoff_list
 matcher_results['min_shared_tokens'] = min_shared_list
 matcher_results['char_ngram'] = char_ngram_list
@@ -312,6 +315,12 @@ matcher_results.set_index("id", inplace = True)
 
 # Visualise some results
 sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall, style = blocking_results.blocking_algo, hue = blocking_results.sampler)
+plt.show()
+
+sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.test_recall, style = blocking_results.blocking_algo, hue = blocking_results.sampler)
+plt.show()
+
+
 blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
 matcher_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
 matcher_results.groupby(["model","sampler","blocking_algo"]).apply(np.mean)
@@ -319,8 +328,36 @@ matcher_results.groupby(["model","sampler","blocking_algo"]).apply(np.mean)
 
 all_results = pd.merge(matcher_results, blocking_results,left_index = True, right_index = True, suffixes = ("_m","_b"))
 
-all_results["overall_recall"] = all_results.test_recall_b * all_results.test_recall_m
+all_results["best_case_overall_recall"] = all_results.test_recall_b * all_results.test_recall_m.apply(np.max)
+
+sns.scatterplot(x = all_results.model, y = all_results.best_case_overall_recall)
+
+print(all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall"]].sort_values("best_case_overall_recall", ascending = False))
 
 
-all_results[["sampler_m","blocking_algo_m","model","overall_recall"]]
+# Plot top 3 and bottom 3 precision recall curves
+top_3 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m"]].nlargest(3,"best_case_overall_recall")
+bottom_3 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m"]].nsmallest(3,"best_case_overall_recall")
+
+#Note the use of explode
+plotting_data = pd.concat([top_3,bottom_3])
+plotting_data["id"] = [1,2,3,4,5,6]
+#plotting_data = pd.melt(plotting_data, id_vars = ["id","sampler_m","blocking_algo_m","model"], value_vars=["test_precision","test_recall_m"]).explode("value")
+# plotting_data.reset_index(inplace = True)
+# plotting_data.value = plotting_data.value.astype(float)
+
+
+#tt = plotting_data.pivot_table(index=[plotting_data.index,plotting_data.id],columns='variable',values='value',fill_value=0)
+
+#sns.lineplot(data =tt, x = "test_precision", y = "test_recall_m", hue = np.array(tt.index.get_level_values(1)))
+
+
+
+for id_val in np.arange(6):
+    if (id_val <=2):
+        colour = "green"
+    else:
+        colour = "red"
+    ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = plotting_data.iloc[id_val,:], color = colour)
+plt.show()
 

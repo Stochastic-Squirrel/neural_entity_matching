@@ -135,7 +135,7 @@ def blocker_as_matcher(n_train, n_valid, n_test):
 
 
 
-def run_magellan_models(sampler = "iterative", blocking = "lsh", lsh_args = None, sequential_args = None, return_prob_estimates = True):
+def run_magellan_models(sampler, blocking, lsh_args, sequential_args, return_prob_estimates = True):
 
 
     '''
