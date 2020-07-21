@@ -68,7 +68,7 @@ lsh_args = [{"seeds":10000, "char_ngram":8, "bands":5000}]
 
 deepmatcher_args = {"sampler":["naive","iterative"], 
                     "blocking_algo":["lsh"],
-                    "model_args":[{"attr_summarizer":"sif"}]}
+                    "model_args":[{"attr_summarizer":"rnn"},{"attr_summarizer":"hybrid"}]}
 
 #,{"attr_summarizer":"rnn"}
 sampler_list = []
