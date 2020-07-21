@@ -151,33 +151,10 @@ def run_deepmatcher_models(deepmatcher_args):
 
                         all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
-                        pickle.dump( all_results, open( "../results/deep_matcher_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
+                        pickle.dump( all_results, open( "../results/WIP_deep_matcher_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
                         print("WIP Results have been saved.")
 
 
-            if (blocker == "sequential"):
-                for block_params in sequential_args:
-                        print(f"Preparing Data under blocker: {blocker} and sampler: {sampler} with params: {block_params}")
-                        prepare_data_deepmatcher(blocker, sampler, lsh_args = None, sequential_args = block_params)
-
-                        # Fit all appropriate models for given set of prepared data
-                        for model_args in deepmatcher_args["model_args"]:
-                            print(f"Training Model Configuration {model_args}")    
-                            sampler_list.append(sampler)
-                            blocking_algo_list.append(blocker)
-
-                            # Generate Data Sets from the current blocking method
-                            train, validation, test = dm.data.process(
-                                path='../data/tmp',
-                                train='train.csv',
-                                validation='valid.csv',
-                                test='test.csv',
-                                left_prefix='lhs_',
-                                right_prefix='rhs_',
-                                label_attr='y',
-                                id_attr='id')
-                            # Fit model and return predictions
-                            result_obj_list.append(fit_deepmatcher(model_args,train, validation, test))
 run_deepmatcher_models(deepmatcher_args)
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
