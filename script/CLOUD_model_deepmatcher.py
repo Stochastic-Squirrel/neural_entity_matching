@@ -92,7 +92,7 @@ def fit_deepmatcher(model_args, train, validation, test, batch_size = 16):
     model.run_train(
         train,
         validation,
-        epochs=5,
+        epochs=10,
         batch_size= batch_size,
         best_save_path='../results/' + model_args["attr_summarizer"] + '.pth',
         pos_neg_ratio=2)
