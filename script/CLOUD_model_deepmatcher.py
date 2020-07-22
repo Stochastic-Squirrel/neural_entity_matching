@@ -39,9 +39,6 @@ import numpy as np
 import pickle
 import datetime
 
-
-
-
 #Important Note: Be aware that creating a matching model (MatchingModel) object does not immediately instantiate all its components - deepmatcher uses a lazy initialization paradigm where components are instantiated just before training. Hence, code examples in this tutorial manually perform this initialization to demonstrate model customization meaningfully.
 
 # Deep matcher learns DIFFERENT attribute similarity weights per attribute
@@ -92,7 +89,7 @@ def fit_deepmatcher(model_args, train, validation, test, batch_size = 16):
     model.run_train(
         train,
         validation,
-        epochs=10,
+        epochs=4,
         batch_size= batch_size,
         best_save_path='../results/' + model_args["attr_summarizer"] + '.pth',
         pos_neg_ratio=2)
@@ -146,7 +143,7 @@ def run_deepmatcher_models(deepmatcher_args):
                             right_prefix='rhs_',
                             label_attr='y',
                             id_attr='id',
-                            pca = False)
+                            pca = True)
                         # Fit model and return predictions
                         result_obj_list.append(fit_deepmatcher(model_args,train, validation, test))
 
