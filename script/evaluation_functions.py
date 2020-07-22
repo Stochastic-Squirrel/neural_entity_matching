@@ -305,60 +305,142 @@ def evaluate_matcher_deepmatcher(result):
                     "metadata":metadata_list})
 
 
+def matcher_results_with_meta(result, is_deep_matcher = False):
+    '''
+    Adds in useful metadata columns and creates ID col to be able to merge with the blocking results.
+    Expects output of evaluate_matcher or evaluate_matcher_deepmatcher
+    '''
 
-
-
-
-
-
-
-
-#result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
-result = pickle.load(open("../results/WIP_deep_matcher.p","rb"))
-
-
-matcher_deep = evaluate_matcher_deepmatcher(result)
-
-
-blocking_results = evaluate_blocking(result)
-blocking_samplers = result["sampler"]
-blocking_blocks = result["blocking_algo"]
-nrow = blocking_results.shape[0]
-
-cutoff_list = ["NA"] * nrow
-min_shared_list = ["NA"] * nrow
-char_ngram_list = ["NA"] *nrow
-bands_list = ["NA"] *nrow
-
-for i, blocking in enumerate(blocking_blocks):
-    if (blocking == "sequential"):
-        cutoff_list[i] = str(blocking_results["metadata"][i]["cutoff_distance"])
-        min_shared_list[i] = str(blocking_results["metadata"][i]["min_shared_tokens"])
+    if is_deep_matcher:
+        matcher_results = evaluate_matcher_deepmatcher(result)
     else:
-        char_ngram_list[i] = str(blocking_results["metadata"][i]["char_ngram"])
-        bands_list[i] = str(blocking_results["metadata"][i]["bands"])
-
-id_col = [""]*nrow
-
-for i in np.arange(nrow):
-    id_col[i] = blocking_samplers[i] + blocking_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+        matcher_results = evaluate_matcher(result)
 
 
+    nrow = matcher_results.shape[0]
+    cutoff_list = ["NA"] * nrow
+    min_shared_list = ["NA"] * nrow
+    char_ngram_list = ["NA"] *nrow
+    bands_list = ["NA"] *nrow
 
 
 
-# blocking_results['sampler'] = blocking_samplers
-# blocking_results['blocking_algo'] = blocking_blocks
-blocking_results['cutoff_distance'] = cutoff_list
-blocking_results['min_shared_tokens'] = min_shared_list
-blocking_results['char_ngram'] = char_ngram_list
-blocking_results['bands'] = bands_list
-blocking_results['id']= id_col
-blocking_results.set_index("id", inplace = True)
+    id_col = [""]*nrow
 
 
 
 
+    for i, blocking in enumerate(matcher_results.blocking_algo):
+        if (blocking == "sequential"):
+            cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
+            min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
+        else:
+            char_ngram_list[i] = str(matcher_results["metadata"][i]["char_ngram"])
+            bands_list[i] = str(matcher_results["metadata"][i]["bands"])
+
+
+    for i in np.arange(nrow):
+        id_col[i] = matcher_results.sampler[i] + matcher_results.blocking_algo[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+
+    matcher_results['cutoff_distance'] = cutoff_list
+    matcher_results['min_shared_tokens'] = min_shared_list
+    matcher_results['char_ngram'] = char_ngram_list
+    matcher_results['bands'] = bands_list
+    matcher_results['id'] = id_col
+    matcher_results.set_index("id", inplace = True)
+
+    return matcher_results
+
+
+def blocking_results_with_meta(result):
+    '''
+    Expects object of result. Calls evaluate_blocker then adds in metadata
+    '''
+
+    blocking_results = evaluate_blocking(result)
+
+    blocking_samplers = result["sampler"]
+    blocking_blocks = result["blocking_algo"]
+    nrow = blocking_results.shape[0]
+
+    cutoff_list = ["NA"] * nrow
+    min_shared_list = ["NA"] * nrow
+    char_ngram_list = ["NA"] *nrow
+    bands_list = ["NA"] *nrow
+
+    for i, blocking in enumerate(blocking_blocks):
+        if (blocking == "sequential"):
+            cutoff_list[i] = str(blocking_results["metadata"][i]["cutoff_distance"])
+            min_shared_list[i] = str(blocking_results["metadata"][i]["min_shared_tokens"])
+        else:
+            char_ngram_list[i] = str(blocking_results["metadata"][i]["char_ngram"])
+            bands_list[i] = str(blocking_results["metadata"][i]["bands"])
+
+    id_col = [""]*nrow
+
+    for i in np.arange(nrow):
+        id_col[i] = blocking_samplers[i] + blocking_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+    # blocking_results['sampler'] = blocking_samplers
+    # blocking_results['blocking_algo'] = blocking_blocks
+    blocking_results['cutoff_distance'] = cutoff_list
+    blocking_results['min_shared_tokens'] = min_shared_list
+    blocking_results['char_ngram'] = char_ngram_list
+    blocking_results['bands'] = bands_list
+    blocking_results['id']= id_col
+    blocking_results.set_index("id", inplace = True)
+
+    return blocking_results
+
+
+
+result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
+matcher_results = matcher_results_with_meta(result)
+blocking_results = blocking_results_with_meta(result)
+
+
+
+result = pickle.load(open("../results/WIP_deep_matcher.p","rb"))
+matcher_results_deep = matcher_results_with_meta(result, is_deep_matcher= True)
+
+matcher_results = pd.concat([matcher_results,matcher_results_deep])
+
+# blocking_results = evaluate_blocking(result)
+# blocking_samplers = result["sampler"]
+# blocking_blocks = result["blocking_algo"]
+# nrow = blocking_results.shape[0]
+
+# cutoff_list = ["NA"] * nrow
+# min_shared_list = ["NA"] * nrow
+# char_ngram_list = ["NA"] *nrow
+# bands_list = ["NA"] *nrow
+
+# for i, blocking in enumerate(blocking_blocks):
+#     if (blocking == "sequential"):
+#         cutoff_list[i] = str(blocking_results["metadata"][i]["cutoff_distance"])
+#         min_shared_list[i] = str(blocking_results["metadata"][i]["min_shared_tokens"])
+#     else:
+#         char_ngram_list[i] = str(blocking_results["metadata"][i]["char_ngram"])
+#         bands_list[i] = str(blocking_results["metadata"][i]["bands"])
+
+# id_col = [""]*nrow
+
+# for i in np.arange(nrow):
+#     id_col[i] = blocking_samplers[i] + blocking_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+
+
+
+
+# # blocking_results['sampler'] = blocking_samplers
+# # blocking_results['blocking_algo'] = blocking_blocks
+# blocking_results['cutoff_distance'] = cutoff_list
+# blocking_results['min_shared_tokens'] = min_shared_list
+# blocking_results['char_ngram'] = char_ngram_list
+# blocking_results['bands'] = bands_list
+# blocking_results['id']= id_col
+# blocking_results.set_index("id", inplace = True)
 
 
 
@@ -371,42 +453,45 @@ blocking_results.set_index("id", inplace = True)
 
 
 
-matcher_results = evaluate_matcher(result)
+
+
+
+
 # matcher_samplers = [ x["sampler"] for x in matcher_results["metadata"]]
 # matcher_blocks = [x["blocking"] for x in matcher_results["metadata"]]
-nrow = matcher_results.shape[0]
+# nrow = matcher_results.shape[0]
 
-cutoff_list = ["NA"] * nrow
-min_shared_list = ["NA"] * nrow
-char_ngram_list = ["NA"] *nrow
-bands_list = ["NA"] *nrow
-
-
-
-id_col = [""]*nrow
+# cutoff_list = ["NA"] * nrow
+# min_shared_list = ["NA"] * nrow
+# char_ngram_list = ["NA"] *nrow
+# bands_list = ["NA"] *nrow
 
 
 
-
-for i, blocking in enumerate(matcher_results.blocking_algo):
-    if (blocking == "sequential"):
-        cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
-        min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
-    else:
-        char_ngram_list[i] = str(matcher_results["metadata"][i]["char_ngram"])
-        bands_list[i] = str(matcher_results["metadata"][i]["bands"])
+# id_col = [""]*nrow
 
 
-for i in np.arange(nrow):
-    id_col[i] = matcher_results.sampler[i] + matcher_results.blocking_algo[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
 
 
-matcher_results['cutoff_distance'] = cutoff_list
-matcher_results['min_shared_tokens'] = min_shared_list
-matcher_results['char_ngram'] = char_ngram_list
-matcher_results['bands'] = bands_list
-matcher_results['id'] = id_col
-matcher_results.set_index("id", inplace = True)
+# for i, blocking in enumerate(matcher_results.blocking_algo):
+#     if (blocking == "sequential"):
+#         cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
+#         min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
+#     else:
+#         char_ngram_list[i] = str(matcher_results["metadata"][i]["char_ngram"])
+#         bands_list[i] = str(matcher_results["metadata"][i]["bands"])
+
+
+# for i in np.arange(nrow):
+#     id_col[i] = matcher_results.sampler[i] + matcher_results.blocking_algo[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
+
+
+# matcher_results['cutoff_distance'] = cutoff_list
+# matcher_results['min_shared_tokens'] = min_shared_list
+# matcher_results['char_ngram'] = char_ngram_list
+# matcher_results['bands'] = bands_list
+# matcher_results['id'] = id_col
+# matcher_results.set_index("id", inplace = True)
 
 # Visualise some results
 sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall, style = blocking_results.blocking_algo, hue = blocking_results.sampler)
@@ -419,8 +504,11 @@ plt.show()
 blocking_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
 matcher_results.groupby(["sampler","blocking_algo"]).apply(np.mean)
 matcher_results.groupby(["model","sampler","blocking_algo"]).apply(np.mean)
+#NB
+matcher_results.query("blocking_algo == 'lsh'").groupby(["model","sampler"]).apply(np.mean)
 
 
+# Mergin results
 all_results = pd.merge(matcher_results, blocking_results,left_index = True, right_index = True, suffixes = ("_m","_b"))
 
 all_results["best_case_overall_recall"] = all_results.test_recall_b * all_results.test_recall_m.apply(np.max)
@@ -436,7 +524,7 @@ bottom_3 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall
 
 #Note the use of explode
 plotting_data = pd.concat([top_3,bottom_3])
-plotting_data["id"] = [1,2,3,4,5,6]
+plotting_data["id"] = np.arange(plotting_data.shape[0])
 #plotting_data = pd.melt(plotting_data, id_vars = ["id","sampler_m","blocking_algo_m","model"], value_vars=["test_precision","test_recall_m"]).explode("value")
 # plotting_data.reset_index(inplace = True)
 # plotting_data.value = plotting_data.value.astype(float)
@@ -448,11 +536,25 @@ plotting_data["id"] = [1,2,3,4,5,6]
 
 
 
-for id_val in np.arange(6):
-    if (id_val <=2):
+for id_val in np.arange(plotting_data.shape[0]):
+    if (id_val <=plotting_data.shape[0]/2):
         colour = "green"
     else:
         colour = "red"
     ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = plotting_data.iloc[id_val,:], color = colour)
 plt.show()
 
+# Plot only top 5
+top_5 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m"]].nlargest(5,"best_case_overall_recall")
+colours = {"RF":"green","LogReg":"blue","Xg-Boost":"black","sif":"orange","rnn":"purple"}
+top_5["id"] = np.arange(top_5.shape[0])
+
+
+
+for id_val in top_5.id:
+
+    model_name = top_5.ix[id_val,"model"]
+    print(model_name)
+    ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = top_5.iloc[id_val,:], color = colours[model_name], label = model_name)
+ax.set(xlabel="Precision", ylabel = "Recall", title = "Top 5 in End-To-End Recall")
+plt.show()
