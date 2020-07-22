@@ -1,62 +1,5 @@
-'''
-General
-https://nbviewer.jupyter.org/github/anhaidgroup/deepmatcher/blob/master/examples/getting_started.ipynb
-Data Processing
-https://nbviewer.jupyter.org/github/anhaidgroup/deepmatcher/blob/master/examples/data_processing.ipynb
-Matching Algorithm
-https://nbviewer.jupyter.org/github/anhaidgroup/deepmatcher/blob/master/examples/matching_models.ipynb
-
-
-Entity matching model using Automatic Feature creation of magellan and tests a host
-of algorithms.
-
- all_result dictionary hierarchy
-
-    Sampler; Blocking Algorithm; Result object
-
-    Since training deep models is expensive, only the best set of candidate blocking solutions are picked
-
-    For a given Sampler and Blocking algo:
-        Result Object[experiment_id corresponding to Sampler-Blocking iteration][Set ID][Model Name when appropriate]
-        Set Ids:
-            0: Training Predictions
-            1: Validation Predictions
-            2: Test Set Predictions
-            3: (All Sets pre-blocked labels) = None  because blocking performance is analysed by model_magellan_ml.py result objects
-            4: All sets post-blocked labels
-            5: Experiment Meta Data
-
-
-
-
-https://github.com/anhaidgroup/deepmatcher
-'''
-import deepmatcher as dm
-import os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-import pandas as pd
-import numpy as np
-import pickle
-import datetime
-
-#Important Note: Be aware that creating a matching model (MatchingModel) object does not immediately instantiate all its components - deepmatcher uses a lazy initialization paradigm where components are instantiated just before training. Hence, code examples in this tutorial manually perform this initialization to demonstrate model customization meaningfully.
-
-# Deep matcher learns DIFFERENT attribute similarity weights per attribute
-
-# We are able to specify custom functions for attrbute summariser and attribute comparison
-
-# Customising Attribute Summarisation
-## Can specify separate components for the 3 sub modules in the attribute summarisation
-## This is in contrast to you just definining an entire attribute summarisation class
-## you can instead choose to build sub-module components to fit within the larger system
-
-### Contextualizer
-### Comparator
-### Aggregator 
-
 sampler = "iterative"
 blocking = "lsh"
-tokenizer = "spacy"
 
 
 # Best Blocker was lsh at 5000 bands. Investigate this under both naive and iterative samplers
@@ -91,7 +34,7 @@ def fit_deepmatcher(model_args, train, validation, test, batch_size = 128):
         validation,
         epochs=4,
         batch_size= batch_size,
-        best_save_path='../results/' + model_args["attr_summarizer"] + '.pth',
+        best_save_path='/kaggle/working/' + model_args["attr_summarizer"] + '.pth',
         pos_neg_ratio=2)
     # Create and store predictions
     ## Name of the model is the attr summarizer setting
@@ -135,7 +78,7 @@ def run_deepmatcher_models(deepmatcher_args):
                         # Generate Data Sets from the current blocking method
                         #For cloud version just read it in
                         train, validation, test = dm.data.process(
-                            path=f'../data/tmp/{sampler}_set',
+                            path=f'/kaggle/input/{sampler}_set',
                             train='train.csv',
                             validation='valid.csv',
                             test='test.csv',
@@ -143,13 +86,16 @@ def run_deepmatcher_models(deepmatcher_args):
                             right_prefix='rhs_',
                             label_attr='y',
                             id_attr='id',
-                            pca = True)
+                            pca = True,
+                            embeddings_cache_path = embeddings_location,
+                            cache ='/kaggle/working/cachedata.pth',
+                            embeddings ='glove.6B.300d')
                         # Fit model and return predictions
                         result_obj_list.append(fit_deepmatcher(model_args,train, validation, test))
 
                         all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
-                        pickle.dump( all_results, open( "../results/WIP_deep_matcher_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
+                        pickle.dump( all_results, open( "/kaggle/working/WIP_deep_matcher.p", "wb" ))
                         print("WIP Results have been saved.")
 
 
@@ -157,7 +103,7 @@ run_deepmatcher_models(deepmatcher_args)
 
 all_results = {"sampler":sampler_list, "blocking_algo":blocking_algo_list,"result_obj":result_obj_list}
 
-pickle.dump( all_results, open( "../results/deep_matcher_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
+pickle.dump( all_results, open( "/kaggle/working/deep_matcher_"+datetime.datetime.today().strftime("%h_%d_%H%M")+".p", "wb" ))
 print("Results have been saved.")
 
 # Debug
@@ -165,4 +111,3 @@ print("Results have been saved.")
 # blocker = deepmatcher_args["blocking_algo"][0]
 # block_params  = lsh_args[0]
 # model_args = deepmatcher_args["model_args"][0]
-

@@ -220,11 +220,104 @@ def evaluate_matcher(result):
                     "thresholds":threshold_list,
                     "metadata":metadata_list})
 
+def evaluate_matcher_deepmatcher(result):
+    '''
+    Accepts a result object from CLOUD_model_deepmatcher.py or Kaggle_deepmatcher.py or model_deepmatcher.py
+    '''
+    sampler_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["sampler"]))
+    blocking_algo_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["blocking_algo"]))
+   
+    precision_list_train = []
+    recall_list_train = []
+    #f1_score_list_train = []
+    average_precision_train = []
+
+    precision_list_valid = []
+    recall_list_valid = []
+    #f1_score_list_valid = []
+    average_precision_valid = []
+
+    precision_list_test = []
+    recall_list_test = []
+    #f1_score_list_test = []
+    average_precision_test = []
+
+    metadata_list = []
+
+    threshold_list = []
+
+    model_list = []
+    # Cycle through experiments
+    for i, obj in enumerate(result["result_obj"]):
+        # Fetch Sources of Truth for this experiment which is POST BLOCKED DATA
+        train_labels = obj[4]["train"]
+        valid_labels = obj[4]["valid"]
+        test_labels = obj[4]["test"]
+
+
+        # For Each Model
+        for model in obj[0]: #arbitrarily choose index 0 to extract model name
+            model_list.append(model)
+
+            metadata_list.append({"char_ngram":8,"seeds":10000,"bands":5000})
+
+            # Gather predictions on a probability scale
+            train_predictions = obj[0][model]
+            valid_predictions = obj[1][model]
+            test_predictions = obj[2][model]
+
+            # Calculate and Store Metrics
+            ## y_true, y_pred
+            train_precision, train_recall, train_thresh = precision_recall_curve(train_labels, train_predictions)
+            precision_list_train.append(train_precision)
+            recall_list_train.append(train_recall)
+            average_precision_train.append(average_precision_score(train_labels, train_predictions))
+
+            valid_precision, valid_recall, valid_thresh = precision_recall_curve(valid_labels, valid_predictions)
+            precision_list_valid.append(valid_precision)
+            recall_list_valid.append(valid_recall)
+            average_precision_valid.append(average_precision_score(valid_labels, valid_predictions))
+
+            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels, test_predictions)
+            precision_list_test.append(test_precision)
+            recall_list_test.append(test_recall)
+            average_precision_test.append(average_precision_score(test_labels, test_predictions))
+
+            threshold_list.append([train_thresh, valid_thresh, test_thresh])
+
+
+
+
+
+    return pd.DataFrame({"sampler":sampler_list,
+                    "blocking_algo":blocking_algo_list,
+                    "model":model_list,
+                    "train_precision":precision_list_train,
+                    "train_recall":recall_list_train,
+                    "train_average_precision":average_precision_train,
+                    "valid_precision":precision_list_valid,
+                    "valid_recall":recall_list_valid,
+                    "valid_average_precision":average_precision_valid,
+                    "test_precision":precision_list_test,
+                    "test_recall":recall_list_test,
+                    "test_average_precision":average_precision_test,
+                    "thresholds":threshold_list,
+                    "metadata":metadata_list})
+
+
+
+
+
+
+
 
 
 
 #result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
-result = pickle.load(open("../results/deep_matcher_Jul_21_1513.p","rb"))
+result = pickle.load(open("../results/WIP_deep_matcher.p","rb"))
+
+
+matcher_deep = evaluate_matcher_deepmatcher(result)
 
 
 blocking_results = evaluate_blocking(result)
