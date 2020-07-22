@@ -1,0 +1,87 @@
+sudo apt-get update && sudo apt-get upgrade
+
+# Install Miniconda
+cd ~
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+bash
+
+# Activating conda
+# fucking weird had to type bash first then conda was activatedf
+conda create --name entity_matching python=3.7.0
+conda activate entity_matching
+# no? conda -c conda-forge cython==0.24.1
+
+# Instals c compiler
+sudo apt-get update && sudo apt-get upgrade
+
+#https://anhaidgroup.github.io/py_entitymatching/v0.3.2/user_manual/installation.html
+sudo apt-get install build-essential
+
+conda install numpy==1.16.2
+
+#  install py_entity_matcher repo
+cd ~
+git clone https://github.com/anhaidgroup/py_entitymatching.git
+cd ~/py_entitymatching
+pip install -U numpy scipy py_entitymatching
+conda uninstall numpy
+conda install numpy==1.16.2
+pip install .
+
+# install fasttext from repo
+cd ~
+git clone https://github.com/facebookresearch/fastText.git
+cd ~/fastText
+pip install .
+
+# finally install deepmatcher
+cd ~
+git clone https://github.com/anhaidgroup/deepmatcher.git
+cd deepmatcher
+pip install .
+
+
+#Get around this with temporary deep learning thing where data presented is already blocked
+#pip install lsh
+# install LSh from mattylira ... ISSUE HERE
+#conda install cython
+#cd ~
+#git clone https://github.com/mattilyra/LSH.git
+#cd LSH
+#python setup.py install
+
+# clone my shit
+cd ~
+git clone https://github.com/Stochastic-Squirrel/neural_entity_matching.git
+
+
+
+
+#https://www.cyberciti.biz/faq/ubuntu-linux-install-nvidia-driver-latest-proprietary-driver/
+#sudo apt install nvidia-driver-390
+#sudo reboot
+
+# see if cuda is installed
+#nvcc --version
+
+# Just DO this
+#https://developer.nvidia.com/cuda-10.2-download-archive?target_os=Linux&target_arch=x86_64&target_distro=Ubuntu&target_version=1804&target_type=deblocal
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
+sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
+sudo dpkg -i cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
+sudo apt-key add /var/cuda-repo-10-2-local-10.2.89-440.33.01/7fa2af80.pub
+sudo apt-get update
+sudo apt-get -y install cuda
+
+
+# make sure that toolkit version matches cuda and is supported by pytorch
+conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+
+in the dm.data.process()
+had to use glove.6B.300d embeddings because it was the onlyone which coudl be downloaded
+
+
+
+
