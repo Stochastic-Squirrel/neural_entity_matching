@@ -24,12 +24,14 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import precision_recall_curve, average_precision_score, f1_score
-#from sklearn.metrics import plot_precision_recall_curve
+from sklearn.metrics import precision_recall_curve, average_precision_score, f1_score,roc_auc_score, auc
 import itertools
 
 
 # TODO: work out how to genearted matching results when using LSH as a matcher
+# TODO validate metrics like end to end recall
+# TODO: add in positive examples with a predicted score of 0 for POSITIVE EXAMPLES ONLY NOT captured by matcher
+#       add tthis in evaluate blocking, returns necessary values to make suyre
 
 def count_off_diagonal(size):
     '''
@@ -56,8 +58,6 @@ def evaluate_blocking(result):
     '''
     # Extract pre-blocked data for train, valid, test
     ## Choice of experiment id is arbitrary as data is repeated in the PRE-blocking stage
-
-    #TODO: check pruning power calculations
 
     # Calculate Pruning Potential from Magellan paper
     ## Prune Rate = 1 - rows(Post_block)/rows(Pre_block)^2
@@ -401,7 +401,7 @@ blocking_results = blocking_results_with_meta(result)
 
 
 
-result = pickle.load(open("../results/WIP_deep_matcher.p","rb"))
+result = pickle.load(open("../results/deep_matcher_Jul_22_2347.p","rb"))
 matcher_results_deep = matcher_results_with_meta(result, is_deep_matcher= True)
 
 matcher_results = pd.concat([matcher_results,matcher_results_deep])
@@ -545,7 +545,7 @@ for id_val in np.arange(plotting_data.shape[0]):
 plt.show()
 
 # Plot only top 5
-top_5 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m"]].nlargest(5,"best_case_overall_recall")
+top_5 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m","test_average_precision"]].nlargest(5,"best_case_overall_recall")
 colours = {"RF":"green","LogReg":"blue","Xg-Boost":"black","sif":"orange","rnn":"purple"}
 top_5["id"] = np.arange(top_5.shape[0])
 
@@ -554,7 +554,10 @@ top_5["id"] = np.arange(top_5.shape[0])
 for id_val in top_5.id:
 
     model_name = top_5.ix[id_val,"model"]
-    print(model_name)
-    ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = top_5.iloc[id_val,:], color = colours[model_name], label = model_name)
+    #print(model_name)
+    avg_precision  = round(top_5.iloc[id_val,:].test_average_precision,2)
+    label_val = f"{model_name.upper()} ({avg_precision})"
+
+    ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = top_5.iloc[id_val,:], color = colours[model_name], label = label_val)
 ax.set(xlabel="Precision", ylabel = "Recall", title = "Top 5 in End-To-End Recall")
 plt.show()
