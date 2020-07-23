@@ -33,6 +33,9 @@ import itertools
 # TODO: add in positive examples with a predicted score of 0 for POSITIVE EXAMPLES ONLY NOT captured by matcher
 #       add tthis in evaluate blocking, returns necessary values to make suyre
 
+#NB IMPORTANT POST ON INTERPRETING PRECISION RECALL
+#https://datascience.stackexchange.com/questions/24990/irregular-precision-recall-curve
+
 def count_off_diagonal(size):
     '''
     Counts upper or lower number of entries in a square matrix excluding the diagonal.
@@ -74,6 +77,10 @@ def evaluate_blocking(result):
 
     # Record the meta_data
     metadata = []
+    #Record missed matches by blocker for the TEST set only.
+    #This will provide information will be added under evaluation_matcher functions so that test precision and recall
+    # is calculated taking into account the MISSED positive matches with blocking
+    missed_positive_matches_df_list = []
 
     # Cycle through experiments
     for i, obj in enumerate(result["result_obj"]):
@@ -100,7 +107,16 @@ def evaluate_blocking(result):
 
             recalled_test = pd.merge(obj[3]["test"], obj[4]["test"], 
             left_on = ["id_amzn","id_g"], right_on = ["id_amzn","id_g"], how = "inner").shape[0]
-            
+            # record which TEST set positive values did NOT make it through 
+            # Identify what values are in TableB and not in TableA
+            test_truth = obj[3]["test"].set_index(["id_amzn","id_g"])
+            test_blocked = obj[4]["test"].set_index(["id_amzn","id_g"])
+            # Find difference in keys between truth and blocked
+            missed_positive_matches_index = set(test_truth.index).difference(test_blocked.index)
+            missed_positive_matches_df_list.append(test_truth.loc[test_truth.index.isin(missed_positive_matches_index)])
+
+
+
             # The stored truth is ONLY of positive matches so we can fetch the number of rows to denote
             # the total number of positives which should be recalled
 
@@ -118,9 +134,13 @@ def evaluate_blocking(result):
                         "train_recall":train_recall,
                         "valid_recall":valid_recall,
                         "test_recall":test_recall,
-                        "metadata":metadata})
+                        "metadata":metadata,
+                        "post_train_size":post_train_size,
+                        "post_valid_size":post_valid_size,
+                        "post_test_size":post_test_size,
+                        "missed_positive_matches_df":missed_positive_matches_df_list})
 
-def evaluate_matcher(result):
+def evaluate_matcher(result, missed_positive_matches_df):
     '''
     Given the post-blocked data sets, evaluate against the train, valid and test truth labels per matching algo
     Each row represents a Sampler-BlockingAlgo - Matcher combination
@@ -132,6 +152,12 @@ def evaluate_matcher(result):
         - Precision of Matcher
         - Recall of Matcher
         - F1 Score
+
+
+       Result is of the magellan models.
+       missed_positive_matches_df is the panda series of attributes from evaluate_blocking_with meta.
+       This is used to adjust the test set recall and precision to take into account positive matches MISSED
+       by the blocker 
     '''
 
 
@@ -194,10 +220,27 @@ def evaluate_matcher(result):
             recall_list_valid.append(valid_recall)
             average_precision_valid.append(average_precision_score(valid_labels.y, valid_predictions))
 
-            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels.y, test_predictions)
+            # Adjust TEST set values to take into account MISSED positive matches by the blocker
+            # Since the matching algorithm did not have a chance to encounter these values, matcher predicted probabilities
+            # would be exactly zero for these models
+            # TODO: cannot! index it by i, need to do a join with the ID string
+
+
+            test_labels_adjusted = pd.concat([test_labels.y, missed_positive_matches_df[i].y])
+            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*missed_positive_matches_df[i].shape[0]),axis = 0)
+            #print(test_labels_adjusted)
+
+            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels_adjusted, test_predictions_adjusted)
             precision_list_test.append(test_precision)
             recall_list_test.append(test_recall)
-            average_precision_test.append(average_precision_score(test_labels.y, test_predictions))
+            average_precision_test.append(average_precision_score(test_labels_adjusted, test_predictions_adjusted))
+
+
+
+            # test_precision, test_recall, test_thresh = precision_recall_curve(test_labels.y, test_predictions)
+            # precision_list_test.append(test_precision)
+            # recall_list_test.append(test_recall)
+            # average_precision_test.append(average_precision_score(test_labels.y, test_predictions))
 
             threshold_list.append([train_thresh, valid_thresh, test_thresh])
 
@@ -220,7 +263,7 @@ def evaluate_matcher(result):
                     "thresholds":threshold_list,
                     "metadata":metadata_list})
 
-def evaluate_matcher_deepmatcher(result):
+def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
     '''
     Accepts a result object from CLOUD_model_deepmatcher.py or Kaggle_deepmatcher.py or model_deepmatcher.py
     '''
@@ -278,10 +321,19 @@ def evaluate_matcher_deepmatcher(result):
             recall_list_valid.append(valid_recall)
             average_precision_valid.append(average_precision_score(valid_labels, valid_predictions))
 
-            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels, test_predictions)
+            # Adjust TEST set values to take into account MISSED positive matches by the blocker
+            # Since the matching algorithm did not have a chance to encounter these values, matcher predicted probabilities
+            # would be exactly zero for these models
+            test_labels_adjusted = pd.concat([test_labels.y, missed_positive_matches_df[i].y])
+           
+            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*missed_positive_matches_df[i].shape[0]),axis = 0)
+            #print(test_labels_adjusted)
+
+            test_precision, test_recall, test_thresh = precision_recall_curve(test_labels_adjusted, test_predictions_adjusted)
             precision_list_test.append(test_precision)
             recall_list_test.append(test_recall)
-            average_precision_test.append(average_precision_score(test_labels, test_predictions))
+            average_precision_test.append(average_precision_score(test_labels_adjusted, test_predictions_adjusted))
+
 
             threshold_list.append([train_thresh, valid_thresh, test_thresh])
 
@@ -305,7 +357,7 @@ def evaluate_matcher_deepmatcher(result):
                     "metadata":metadata_list})
 
 
-def matcher_results_with_meta(result, is_deep_matcher = False):
+def matcher_results_with_meta(result, missed_positive_matches_df, is_deep_matcher = False):
     '''
     Adds in useful metadata columns and creates ID col to be able to merge with the blocking results.
     Expects output of evaluate_matcher or evaluate_matcher_deepmatcher
@@ -314,7 +366,7 @@ def matcher_results_with_meta(result, is_deep_matcher = False):
     if is_deep_matcher:
         matcher_results = evaluate_matcher_deepmatcher(result)
     else:
-        matcher_results = evaluate_matcher(result)
+        matcher_results = evaluate_matcher(result, missed_positive_matches_df)
 
 
     nrow = matcher_results.shape[0]
@@ -396,102 +448,18 @@ def blocking_results_with_meta(result):
 
 
 result = pickle.load(open("../results/magellan_Jul_20_2017.p","rb"))
-matcher_results = matcher_results_with_meta(result)
 blocking_results = blocking_results_with_meta(result)
+matcher_results = matcher_results_with_meta(result, blocking_results.missed_positive_matches_df)
+
 
 
 
 result = pickle.load(open("../results/deep_matcher_Jul_22_2347.p","rb"))
-matcher_results_deep = matcher_results_with_meta(result, is_deep_matcher= True)
+matcher_results_deep = matcher_results_with_meta(result, blocking_results.missed_positive_matches_df, is_deep_matcher= True)
 
 matcher_results = pd.concat([matcher_results,matcher_results_deep])
 
-# blocking_results = evaluate_blocking(result)
-# blocking_samplers = result["sampler"]
-# blocking_blocks = result["blocking_algo"]
-# nrow = blocking_results.shape[0]
 
-# cutoff_list = ["NA"] * nrow
-# min_shared_list = ["NA"] * nrow
-# char_ngram_list = ["NA"] *nrow
-# bands_list = ["NA"] *nrow
-
-# for i, blocking in enumerate(blocking_blocks):
-#     if (blocking == "sequential"):
-#         cutoff_list[i] = str(blocking_results["metadata"][i]["cutoff_distance"])
-#         min_shared_list[i] = str(blocking_results["metadata"][i]["min_shared_tokens"])
-#     else:
-#         char_ngram_list[i] = str(blocking_results["metadata"][i]["char_ngram"])
-#         bands_list[i] = str(blocking_results["metadata"][i]["bands"])
-
-# id_col = [""]*nrow
-
-# for i in np.arange(nrow):
-#     id_col[i] = blocking_samplers[i] + blocking_blocks[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
-
-
-
-
-
-# # blocking_results['sampler'] = blocking_samplers
-# # blocking_results['blocking_algo'] = blocking_blocks
-# blocking_results['cutoff_distance'] = cutoff_list
-# blocking_results['min_shared_tokens'] = min_shared_list
-# blocking_results['char_ngram'] = char_ngram_list
-# blocking_results['bands'] = bands_list
-# blocking_results['id']= id_col
-# blocking_results.set_index("id", inplace = True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# matcher_samplers = [ x["sampler"] for x in matcher_results["metadata"]]
-# matcher_blocks = [x["blocking"] for x in matcher_results["metadata"]]
-# nrow = matcher_results.shape[0]
-
-# cutoff_list = ["NA"] * nrow
-# min_shared_list = ["NA"] * nrow
-# char_ngram_list = ["NA"] *nrow
-# bands_list = ["NA"] *nrow
-
-
-
-# id_col = [""]*nrow
-
-
-
-
-# for i, blocking in enumerate(matcher_results.blocking_algo):
-#     if (blocking == "sequential"):
-#         cutoff_list[i] = str(matcher_results["metadata"][i]["cutoff_distance"])
-#         min_shared_list[i] = str(matcher_results["metadata"][i]["min_shared_tokens"])
-#     else:
-#         char_ngram_list[i] = str(matcher_results["metadata"][i]["char_ngram"])
-#         bands_list[i] = str(matcher_results["metadata"][i]["bands"])
-
-
-# for i in np.arange(nrow):
-#     id_col[i] = matcher_results.sampler[i] + matcher_results.blocking_algo[i] + cutoff_list[i] + min_shared_list[i] + char_ngram_list[i] + bands_list[i]
-
-
-# matcher_results['cutoff_distance'] = cutoff_list
-# matcher_results['min_shared_tokens'] = min_shared_list
-# matcher_results['char_ngram'] = char_ngram_list
-# matcher_results['bands'] = bands_list
-# matcher_results['id'] = id_col
-# matcher_results.set_index("id", inplace = True)
 
 # Visualise some results
 sns.scatterplot(x = blocking_results.train_recall, y = blocking_results.valid_recall, style = blocking_results.blocking_algo, hue = blocking_results.sampler)
