@@ -30,8 +30,10 @@ import itertools
 
 # TODO: work out how to genearted matching results when using LSH as a matcher
 # TODO validate metrics like end to end recall
-# TODO: add in positive examples with a predicted score of 0 for POSITIVE EXAMPLES ONLY NOT captured by matcher
-#       add tthis in evaluate blocking, returns necessary values to make suyre
+
+
+#TODO: look at magellan models saving sampler blocking
+
 
 #NB IMPORTANT POST ON INTERPRETING PRECISION RECALL
 #https://datascience.stackexchange.com/questions/24990/irregular-precision-recall-curve
@@ -161,11 +163,8 @@ def evaluate_matcher(result, missed_positive_matches_df):
     '''
 
 
- 
-    sampler_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["sampler"]))
-    blocking_algo_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["blocking_algo"]))
-   
-
+    sampler_list = []
+    blocking_algo_list = []
 
 
 
@@ -202,6 +201,27 @@ def evaluate_matcher(result, missed_positive_matches_df):
             model_list.append(model)
 
             metadata_list.append(obj[5])
+            sampler_list.append(result["sampler"][i])
+            blocking_algo_list.append(result["blocking_algo"][i])
+
+            # Redudant but we need to calculate the blocker ID for this experiment to link up with missed_positive_df values
+            cutoff_list = "NA"
+            min_shared_list = "NA"
+            char_ngram_list = "NA"
+            bands_list = "NA"
+
+            # print(obj[5])
+            # print(obj[5]["blocking"])
+
+            if (obj[5]["blocking"] == "sequential"):
+                cutoff_list= str(obj[5]["cutoff_distance"])
+                min_shared_list = str(obj[5]["min_shared_tokens"])
+            else:
+                char_ngram_list = str(obj[5]['char_ngram'])
+                bands_list = str(obj[5]['bands'])
+
+            id_col = obj[5]["sampler"] + obj[5]["blocking"] + cutoff_list + min_shared_list + char_ngram_list + bands_list
+
 
             # Gather predictions on a probability scale
             train_predictions = obj[0][model][1]
@@ -225,9 +245,10 @@ def evaluate_matcher(result, missed_positive_matches_df):
             # would be exactly zero for these models
             # TODO: cannot! index it by i, need to do a join with the ID string
 
+            adjustment_df = missed_positive_matches_df.loc[id_col]
 
-            test_labels_adjusted = pd.concat([test_labels.y, missed_positive_matches_df[i].y])
-            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*missed_positive_matches_df[i].shape[0]),axis = 0)
+            test_labels_adjusted = pd.concat([test_labels.y, adjustment_df.y])
+            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*adjustment_df.shape[0]),axis = 0)
             #print(test_labels_adjusted)
 
             test_precision, test_recall, test_thresh = precision_recall_curve(test_labels_adjusted, test_predictions_adjusted)
@@ -267,8 +288,8 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
     '''
     Accepts a result object from CLOUD_model_deepmatcher.py or Kaggle_deepmatcher.py or model_deepmatcher.py
     '''
-    sampler_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["sampler"]))
-    blocking_algo_list = list(itertools.chain.from_iterable(itertools.repeat(x, len(result["result_obj"][0][0])) for x in result["blocking_algo"]))
+    sampler_list = []
+    blocking_algo_list = []
    
     precision_list_train = []
     recall_list_train = []
@@ -302,7 +323,21 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
         for model in obj[0]: #arbitrarily choose index 0 to extract model name
             model_list.append(model)
 
+            # Only used this configuration
             metadata_list.append({"char_ngram":8,"seeds":10000,"bands":5000})
+
+            sampler_list.append(result["sampler"][i])
+            blocking_algo_list.append(result["blocking_algo"][i])
+
+            # Redudant but we need to calculate the blocker ID for this experiment to link up with missed_positive_df values
+            cutoff_list = "NA"
+            min_shared_list = "NA"
+            char_ngram_list = "8"
+            bands_list = "5000"
+
+            id_col = result["sampler"][i] + "lsh" + cutoff_list + min_shared_list + char_ngram_list + bands_list
+
+
 
             # Gather predictions on a probability scale
             train_predictions = obj[0][model]
@@ -324,16 +359,17 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
             # Adjust TEST set values to take into account MISSED positive matches by the blocker
             # Since the matching algorithm did not have a chance to encounter these values, matcher predicted probabilities
             # would be exactly zero for these models
-            test_labels_adjusted = pd.concat([test_labels.y, missed_positive_matches_df[i].y])
-           
-            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*missed_positive_matches_df[i].shape[0]),axis = 0)
+            adjustment_df = missed_positive_matches_df.loc[id_col]
+
+            #TODO: CHECK THIS IF TEST SET RESULTS FOR DEEP LEARNING IS FUCKY
+            test_labels_adjusted = np.concatenate((test_labels, adjustment_df.y), axis = 0)
+            test_predictions_adjusted = np.concatenate( (test_predictions,[0]*adjustment_df.shape[0]),axis = 0)
             #print(test_labels_adjusted)
 
             test_precision, test_recall, test_thresh = precision_recall_curve(test_labels_adjusted, test_predictions_adjusted)
             precision_list_test.append(test_precision)
             recall_list_test.append(test_recall)
             average_precision_test.append(average_precision_score(test_labels_adjusted, test_predictions_adjusted))
-
 
             threshold_list.append([train_thresh, valid_thresh, test_thresh])
 
@@ -364,7 +400,7 @@ def matcher_results_with_meta(result, missed_positive_matches_df, is_deep_matche
     '''
 
     if is_deep_matcher:
-        matcher_results = evaluate_matcher_deepmatcher(result)
+        matcher_results = evaluate_matcher_deepmatcher(result,missed_positive_matches_df)
     else:
         matcher_results = evaluate_matcher(result, missed_positive_matches_df)
 
@@ -452,12 +488,15 @@ blocking_results = blocking_results_with_meta(result)
 matcher_results = matcher_results_with_meta(result, blocking_results.missed_positive_matches_df)
 
 
-
-
 result = pickle.load(open("../results/deep_matcher_Jul_22_2347.p","rb"))
 matcher_results_deep = matcher_results_with_meta(result, blocking_results.missed_positive_matches_df, is_deep_matcher= True)
 
-matcher_results = pd.concat([matcher_results,matcher_results_deep])
+result = pickle.load(open("../results/deep_matcher_hybrid_Jul_23_1630.p","rb"))
+matcher_results_deep_hybrid = matcher_results_with_meta(result, blocking_results.missed_positive_matches_df, is_deep_matcher= True)
+
+
+
+matcher_results = pd.concat([matcher_results,matcher_results_deep,matcher_results_deep_hybrid])
 
 
 
@@ -512,20 +551,19 @@ for id_val in np.arange(plotting_data.shape[0]):
     ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = plotting_data.iloc[id_val,:], color = colour)
 plt.show()
 
-# Plot only top 5
-top_5 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m","test_average_precision"]].nlargest(5,"best_case_overall_recall")
-colours = {"RF":"green","LogReg":"blue","Xg-Boost":"black","sif":"orange","rnn":"purple"}
-top_5["id"] = np.arange(top_5.shape[0])
+# Plot only top 6
+top_6 = all_results[["sampler_m","blocking_algo_m","model","best_case_overall_recall","test_precision","test_recall_m","test_average_precision"]].nlargest(6,"best_case_overall_recall")
+colours = {"RF":"green","LogReg":"blue","Xg-Boost":"black","sif":"orange","rnn":"purple","hybrid":"pink"}
+top_6 = top_6.sort_values("test_average_precision")
+top_6["id"] = np.arange(top_6.shape[0])
 
+for id_val in top_6.id:
 
-
-for id_val in top_5.id:
-
-    model_name = top_5.ix[id_val,"model"]
+    model_name = top_6.ix[id_val,"model"]
     #print(model_name)
-    avg_precision  = round(top_5.iloc[id_val,:].test_average_precision,2)
+    avg_precision  = round(top_6.iloc[id_val,:].test_average_precision,2)
     label_val = f"{model_name.upper()} ({avg_precision})"
 
-    ax = sns.lineplot(x = "test_precision" , y = "test_recall_m", data = top_5.iloc[id_val,:], color = colours[model_name], label = label_val)
-ax.set(xlabel="Precision", ylabel = "Recall", title = "Top 5 in End-To-End Recall")
+    ax = sns.lineplot(y = "test_precision" , x = "test_recall_m", data = top_6.iloc[id_val,:], color = colours[model_name], label = label_val)
+ax.set(ylabel="Precision", xlabel = "Recall", title = "Top 5 in End-To-End Recall")
 plt.show()
