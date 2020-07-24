@@ -241,7 +241,7 @@ def evaluate_matcher(result, missed_positive_matches_df):
             # Adjust TEST set values to take into account MISSED positive matches by the blocker
             # Since the matching algorithm did not have a chance to encounter these values, matcher predicted probabilities
             # would be exactly zero for these models
-            # TODO: cannot! index it by i, need to do a join with the ID string
+            # need to do a join with the ID string
 
             adjustment_df = missed_positive_matches_df.loc[id_col]
 

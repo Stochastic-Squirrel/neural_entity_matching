@@ -76,12 +76,16 @@ sudo apt-get update
 sudo apt-get -y install cuda
 
 
+unzip data
+mkdir results
+
 # make sure that toolkit version matches cuda and is supported by pytorch
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 
 in the dm.data.process()
 had to use glove.6B.300d embeddings because it was the onlyone which coudl be downloaded
 
-
+# install toolkit
+sudo apt
 
 
