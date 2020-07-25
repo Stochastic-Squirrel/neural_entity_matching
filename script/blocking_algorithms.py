@@ -164,25 +164,6 @@ def lsh_blocking(lhs_table, rhs_table, hashing_col_position, id_position, id_nam
     appropriate_indices = correct_alignment_indices.union(switched_alignment_indices)
     appropriate_indices.names = id_names
 
-    # Old implementation of iterating through
-    # for i in candidate_pairs:
-    #     # Create a hierarchical index 
-    #     candidate_index = pd.Index([i])
-    #     # First Try: Assume Correct Alignment
-    #     if ((candidate_index.get_level_values(0).isin(lhs_table.index)) & (candidate_index.get_level_values(1).isin(rhs_table.index))):
-    #         appropriate_indices.update({i})
-    #     elif ((candidate_index.get_level_values(1).isin(lhs_table.index)) & (candidate_index.get_level_values(0).isin(rhs_table.index))): 
-    #     # Assuming that the LHS index is actually in position one for this candidate pair
-    #     # If this is the case, you need to swap the candidate_index values to align with lhs_table; rhs_table ordering
-    #         appropriate_indices.update({(i[1],i[0])})
-    #     # If a candidate index does NOT pass any of these tests, it means that it represents a WITHIN table possible duplicate
-    #     # This is not the objective of this code
-
-    # Convert set object to an index for easy pandas manipulation
-    #appropriate_indices = pd.Index(appropriate_indices, names = id_names)
-
-    # lhs_table.loc[appropriate_indices.get_level_values(0)]
-    # rhs_table.loc[appropriate_indices.get_level_values(1)]
 
     candidate_pair_df = pd.concat([lhs_table.loc[appropriate_indices.get_level_values(0)].reset_index(), rhs_table.loc[appropriate_indices.get_level_values(1)].reset_index()],axis = 1)
     candidate_pair_df = candidate_pair_df.set_index(keys = id_names)
