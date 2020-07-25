@@ -282,7 +282,7 @@ def evaluate_matcher(result, missed_positive_matches_df):
                     "thresholds":threshold_list,
                     "metadata":metadata_list})
 
-def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
+def evaluate_matcher_deepmatcher(result, missed_positive_matches_df, bands):
     '''
     Accepts a result object from CLOUD_model_deepmatcher.py or Kaggle_deepmatcher.py or model_deepmatcher.py
     '''
@@ -322,7 +322,7 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
             model_list.append(model)
 
             # Only used this configuration
-            metadata_list.append({"char_ngram":8,"seeds":10000,"bands":5000})
+            metadata_list.append({"char_ngram":8,"seeds":10000,"bands":bands})
 
             sampler_list.append(result["sampler"][i])
             blocking_algo_list.append(result["blocking_algo"][i])
@@ -331,7 +331,7 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
             cutoff_list = "NA"
             min_shared_list = "NA"
             char_ngram_list = "8"
-            bands_list = "5000"
+            bands_list = str(bands)
 
             id_col = result["sampler"][i] + "lsh" + cutoff_list + min_shared_list + char_ngram_list + bands_list
 
@@ -391,14 +391,14 @@ def evaluate_matcher_deepmatcher(result, missed_positive_matches_df):
                     "metadata":metadata_list})
 
 
-def matcher_results_with_meta(result, missed_positive_matches_df, is_deep_matcher = False):
+def matcher_results_with_meta(result, missed_positive_matches_df, is_deep_matcher = False, bands = None):
     '''
     Adds in useful metadata columns and creates ID col to be able to merge with the blocking results.
     Expects output of evaluate_matcher or evaluate_matcher_deepmatcher
     '''
 
     if is_deep_matcher:
-        matcher_results = evaluate_matcher_deepmatcher(result,missed_positive_matches_df)
+        matcher_results = evaluate_matcher_deepmatcher(result,missed_positive_matches_df, bands)
     else:
         matcher_results = evaluate_matcher(result, missed_positive_matches_df)
 
