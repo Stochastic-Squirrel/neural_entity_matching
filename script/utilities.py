@@ -62,8 +62,12 @@ class EM_Data:
             true_matches_sample = pd.DataFrame({"similarity":[-1000]})
 
         if plot:
-            sns.distplot(true_matches_sample.similarity)
-            sns.distplot(negative_matches_sample.similarity, color = "red")
+            sns.distplot(true_matches_sample.similarity, label = "Positive Match")
+            sns.distplot(negative_matches_sample.similarity, color = "red", label = "Negative Match")
+            plt.xlabel("Levenstein Edit Similarity (0 to 100)")
+            plt.ylabel("Density")
+            plt.legend()
+            plt.show()
         if return_sim:
             return (true_matches_sample.similarity, negative_matches_sample.similarity)
     
