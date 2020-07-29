@@ -64,7 +64,7 @@ class EM_Data:
         if plot:
             sns.distplot(true_matches_sample.similarity, label = "Positive Match")
             sns.distplot(negative_matches_sample.similarity, color = "red", label = "Negative Match")
-            plt.xlabel("Levenstein Edit Similarity (0 to 100)")
+            plt.xlabel("Levenshtein Edit Similarity (0 to 100)")
             plt.ylabel("Density")
             plt.legend()
             plt.show()
@@ -553,4 +553,4 @@ def shingles(text, char_ngram=5):
 #  prop_train = 0.8
 #  seed = 80085
 
-shingles("punch ",5)
+shingles("Adobe Acrobat ",8)
