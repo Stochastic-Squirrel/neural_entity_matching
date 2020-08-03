@@ -531,7 +531,7 @@ def plot_lsh_candidate_prob(piece_size_array, k_minhashes):
     plt.xlabel('Jaccard similarity')
     plt.legend(list(df.loc[ix[k_minhashes]].index),
             bbox_to_anchor=(1., 1, 1., 0), loc='upper left', fontsize=12, 
-            ncol=1, borderaxespad=0., title='Each line shows the\nfingerprint chopped\ninto (pieces, size)\n')
+            ncol=1, borderaxespad=0., title='Each line shows the\nfingerprint chopped\ninto (bands, size)\n')
 
 # Credit: https://github.com/mattilyra/lsh
 def shingles(text, char_ngram=5):
